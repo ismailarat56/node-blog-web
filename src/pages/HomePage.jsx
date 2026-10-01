@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router";
 import CategoryFilter from "../components/CategoryFilter.jsx";
 import Pagination from "../components/Pagination.jsx";
 import PostList from "../components/PostList.jsx";
@@ -6,6 +6,16 @@ import StatusMessage from "../components/StatusMessage.jsx";
 import useApi from "../hooks/useApi.js";
 
 const PAGE_SIZE = 4;
+
+function parsePositiveInt(value) {
+  const number = Number(value);
+
+  if (Number.isInteger(number) && number > 0) {
+    return number;
+  }
+
+  return null;
+}
 
 function buildPostsPath(categoryId, page) {
   const params = new URLSearchParams({
@@ -21,16 +31,43 @@ function buildPostsPath(categoryId, page) {
 }
 
 export default function HomePage() {
-  const [categoryId, setCategoryId] = useState(null);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const categoryId = parsePositiveInt(
+    searchParams.get("category")
+  );
+  const page =
+    parsePositiveInt(searchParams.get("page")) ?? 1;
 
   const posts = useApi(
     buildPostsPath(categoryId, page)
   );
 
+  const isPageMissing =
+    posts.meta !== null &&
+    posts.meta.total_pages > 0 &&
+    page > posts.meta.total_pages;
+
+  function updateFilters(nextCategoryId, nextPage) {
+    const nextParams = new URLSearchParams();
+
+    if (nextCategoryId !== null) {
+      nextParams.set("category", String(nextCategoryId));
+    }
+
+    if (nextPage > 1) {
+      nextParams.set("page", String(nextPage));
+    }
+
+    setSearchParams(nextParams);
+  }
+
   function handleCategorySelect(nextCategoryId) {
-    setCategoryId(nextCategoryId);
-    setPage(1);
+    updateFilters(nextCategoryId, 1);
+  }
+
+  function handlePageChange(nextPage) {
+    updateFilters(categoryId, nextPage);
   }
 
   return (
@@ -52,14 +89,27 @@ export default function HomePage() {
         </StatusMessage>
       )}
 
-      {posts.data && (
+      {posts.data && isPageMissing && (
+        <StatusMessage>
+          Bu sayfa yok.{" "}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => handlePageChange(1)}
+          >
+            İlk sayfaya dön
+          </button>
+        </StatusMessage>
+      )}
+
+      {posts.data && !isPageMissing && (
         <>
           <PostList posts={posts.data} />
 
           <Pagination
             page={page}
             totalPages={posts.meta.total_pages}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
           />
         </>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiGet } from "../api/client.js";
 
 export default function useApi(path) {
+  const [version, setVersion] = useState(0);
   const [result, setResult] = useState({
     path: null,
     data: null,
@@ -30,7 +31,11 @@ export default function useApi(path) {
       });
 
     return () => controller.abort();
-  }, [path]);
+  }, [path, version]);
+
+  function reload() {
+    setVersion((current) => current + 1);
+  }
 
   const isCurrent = result.path === path;
 
@@ -39,5 +44,6 @@ export default function useApi(path) {
     data: isCurrent ? result.data : null,
     meta: isCurrent ? result.meta : null,
     error: isCurrent ? result.error : null,
+    reload,
   };
 }

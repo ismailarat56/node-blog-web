@@ -33,6 +33,7 @@ export default function PostDetailPage() {
   }
 
   const {
+    id,
     title,
     content,
     cover_url: coverUrl,
@@ -66,7 +67,7 @@ export default function PostDetailPage() {
 
       <div className="post-detail__content">{content}</div>
 
-      <CommentList slug={slug} />
+      <CommentList slug={slug} postId={id} />
     </article>
   );
 }

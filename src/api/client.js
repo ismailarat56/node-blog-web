@@ -1,19 +1,46 @@
 export class ApiError extends Error {
-  constructor(status, code, message, details) {
+  constructor(status, code, message, details, retryAfter) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.retryAfter = retryAfter ?? null;
   }
 }
 
-export async function apiGet(path, { signal } = {}) {
+function readRetryAfter(response) {
+  const seconds = Number(response.headers.get("Retry-After"));
+
+  if (Number.isInteger(seconds) && seconds > 0) {
+    return seconds;
+  }
+
+  return null;
+}
+
+export async function apiRequest(
+  path,
+  { method = "GET", body, token, signal } = {}
+) {
+  const headers = { Accept: "application/json" };
+
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   let response;
 
   try {
     response = await fetch(path, {
-      headers: { Accept: "application/json" },
+      method,
+      headers,
+      body:
+        body === undefined ? undefined : JSON.stringify(body),
       signal,
     });
   } catch (error) {
@@ -28,28 +55,34 @@ export async function apiGet(path, { signal } = {}) {
     );
   }
 
-  let body = null;
+  let payload = null;
 
   try {
-    body = await response.json();
+    payload = await response.json();
   } catch (error) {
     if (error.name === "AbortError") {
       throw error;
     }
   }
 
-  if (!response.ok || !body?.success) {
+  if (!response.ok || !payload?.success) {
     throw new ApiError(
       response.status,
-      body?.error?.code ?? "UNEXPECTED_RESPONSE",
-      body?.error?.message ??
+      payload?.error?.code ?? "UNEXPECTED_RESPONSE",
+      payload?.error?.message ??
         "Sunucudan beklenmeyen bir yanıt geldi.",
-      body?.error?.details
+      payload?.error?.details,
+      readRetryAfter(response)
     );
   }
 
   return {
-    data: body.data,
-    meta: body.meta ?? null,
+    data: payload.data ?? null,
+    meta: payload.meta ?? null,
+    message: payload.message ?? null,
   };
+}
+
+export function apiGet(path, options) {
+  return apiRequest(path, options);
 }
