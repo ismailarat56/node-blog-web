@@ -300,3 +300,140 @@ button {
 	margin: 4px 0 0;
 	white-space: pre-wrap;
 }
+
+/* 30.09: üst menü */
+
+.header__nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header__nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.header__nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* 30.09: formlar */
+
+.auth-page {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.form__field {
+  display: grid;
+  gap: 4px;
+}
+
+.form__field label {
+  font-weight: 600;
+}
+
+.form__field input,
+.form__field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+}
+
+.form__field input:focus,
+.form__field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.form__field [aria-invalid="true"] {
+  border-color: #e5a3a3;
+}
+
+.form__error {
+  margin: 0;
+  color: var(--error-text);
+  font-size: 0.85rem;
+}
+
+.form__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.link-button:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+/* 30.09: hesap sayfası */
+
+.account-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0 0 24px;
+}
+
+.account-details dt {
+  color: var(--muted);
+}
+
+.account-details dd {
+  margin: 0;
+}
+
+/* 30.09: yorum formu ve eylemleri */
+
+.comment-form {
+  margin: 16px 0 24px;
+}
+
+.comment__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
