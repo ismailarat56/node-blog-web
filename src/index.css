@@ -437,3 +437,158 @@ button {
   margin-top: 4px;
   font-size: 0.85rem;
 }
+
+/* 02.10: yazar paneli */
+
+.dashboard__nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard__nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.dashboard__nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.dashboard__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.post-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.post-table th,
+.post-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.post-table th {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.post-table__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e9e7e1;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge--published {
+  background: #e3f1e6;
+  color: #1f6b35;
+}
+
+.badge--hidden {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+/* 02.10: yazı editörü */
+
+.editor {
+  display: grid;
+  gap: 32px;
+  max-width: 720px;
+}
+
+.editor__section {
+  display: grid;
+  gap: 12px;
+}
+
+.editor__section h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.form__field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+}
+
+.form__field textarea {
+  resize: vertical;
+}
+
+.cover-preview {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #e9e7e1;
+}
+
+.cover-preview--empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.link-button--danger {
+  color: var(--error-text);
+}
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
+}
+
+/* 02.10: yorum moderasyonu */
+
+.moderation-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moderation-item {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.moderation-item--reply {
+  margin-left: 24px;
+}
+
+.moderation-item--hidden {
+  border-style: dashed;
+  background: transparent;
+}
