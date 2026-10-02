@@ -15,38 +15,61 @@ function describeCommentError(error) {
 export default function CommentForm({
   postId,
   parentId = null,
-  onCreated,
+  comment = null,
+  onSaved,
   onCancel,
 }) {
   const auth = useAuth();
   const id = useId();
 
-  const [body, setBody] = useState("");
+  const isEditing = comment !== null;
+
+  const [body, setBody] = useState(comment?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const text = body.trim();
   const remaining = MAX_LENGTH - body.length;
-  const canSubmit = text.length > 0 && !submitting;
+  const isUnchanged = isEditing && text === comment.body;
+  const canSubmit =
+    text.length > 0 && !isUnchanged && !submitting;
+
+  const submitLabel = isEditing ? "Kaydet" : "Gönder";
+
+  let label = "Yorumun";
+
+  if (isEditing) {
+    label = "Yorumunu düzenle";
+  } else if (parentId !== null) {
+    label = "Cevabın";
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    const payload =
-      parentId === null
-        ? { body: text }
-        : { body: text, parent_id: parentId };
-
     try {
-      await auth.authRequest(
-        `/api/v1/posts/${postId}/comments`,
-        { method: "POST", body: payload }
-      );
+      if (isEditing) {
+        await auth.authRequest(`/api/v1/comments/${comment.id}`, {
+          method: "PATCH",
+          body: { body: text },
+        });
+      } else {
+        const payload =
+          parentId === null
+            ? { body: text }
+            : { body: text, parent_id: parentId };
 
-      setBody("");
-      onCreated();
+        await auth.authRequest(
+          `/api/v1/posts/${postId}/comments`,
+          { method: "POST", body: payload }
+        );
+
+        setBody("");
+      }
+
+      onSaved();
     } catch (commentError) {
       setError(commentError);
     } finally {
@@ -57,13 +80,11 @@ export default function CommentForm({
   return (
     <form className="form comment-form" onSubmit={handleSubmit}>
       <div className="form__field">
-        <label htmlFor={id}>
-          {parentId === null ? "Yorumun" : "Cevabın"}
-        </label>
+        <label htmlFor={id}>{label}</label>
 
         <textarea
           id={id}
-          rows={parentId === null ? 4 : 3}
+          rows={parentId === null && !isEditing ? 4 : 3}
           maxLength={MAX_LENGTH}
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -84,7 +105,7 @@ export default function CommentForm({
           className="button"
           disabled={!canSubmit}
         >
-          {submitting ? "Gönderiliyor..." : "Gönder"}
+          {submitting ? "Gönderiliyor..." : submitLabel}
         </button>
 
         {onCancel && (

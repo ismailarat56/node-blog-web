@@ -20,7 +20,7 @@ export default function CommentList({ slug, postId }) {
       {auth.status === "authenticated" && (
         <CommentForm
           postId={postId}
-          onCreated={comments.reload}
+          onSaved={comments.reload}
         />
       )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet } from "../api/client.js";
 
-export default function useApi(path) {
+export default function useApi(path, request = apiGet) {
   const [version, setVersion] = useState(0);
   const [result, setResult] = useState({
     path: null,
@@ -13,7 +13,7 @@ export default function useApi(path) {
   useEffect(() => {
     const controller = new AbortController();
 
-    apiGet(path, { signal: controller.signal })
+    request(path, { signal: controller.signal })
       .then(({ data, meta }) => {
         setResult({ path, data, meta, error: null });
       })
@@ -31,7 +31,7 @@ export default function useApi(path) {
       });
 
     return () => controller.abort();
-  }, [path, version]);
+  }, [path, version, request]);
 
   function reload() {
     setVersion((current) => current + 1);

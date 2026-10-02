@@ -23,9 +23,10 @@ export async function apiRequest(
   path,
   { method = "GET", body, token, signal } = {}
 ) {
+  const isFormData = body instanceof FormData;
   const headers = { Accept: "application/json" };
 
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -40,7 +41,9 @@ export async function apiRequest(
       method,
       headers,
       body:
-        body === undefined ? undefined : JSON.stringify(body),
+        body === undefined || isFormData
+          ? body
+          : JSON.stringify(body),
       signal,
     });
   } catch (error) {
@@ -53,6 +56,10 @@ export async function apiRequest(
       "NETWORK_ERROR",
       "Sunucuya ulaşılamadı."
     );
+  }
+
+  if (response.status === 204) {
+    return { data: null, meta: null, message: null };
   }
 
   let payload = null;

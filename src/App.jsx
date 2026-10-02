@@ -1,9 +1,13 @@
 import { Route, Routes } from "react-router";
+import DashboardLayout from "./components/DashboardLayout.jsx";
 import Layout from "./components/Layout.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import AccountPage from "./pages/AccountPage.jsx";
+import DashboardPage from "./pages/DashboardPage.jsx";
+import EditPostPage from "./pages/EditPostPage.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import NewPostPage from "./pages/NewPostPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import PostDetailPage from "./pages/PostDetailPage.jsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
@@ -27,6 +31,18 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <DashboardLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="posts/new" element={<NewPostPage />} />
+          <Route path="posts/:id/edit" element={<EditPostPage />} />
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Layout>

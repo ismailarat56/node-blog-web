@@ -13,19 +13,29 @@ export default function CommentItem({
   const auth = useAuth();
 
   const [isReplying, setIsReplying] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
 
   const replies = comment.replies ?? [];
   const isSignedIn = auth.status === "authenticated";
+  const isAuthor =
+    isSignedIn && auth.user.id === comment.author.id;
+  const isAdmin = isSignedIn && auth.user.role === "admin";
+
   const canReply = isSignedIn && !isReply;
-  const canDelete =
-    isSignedIn &&
-    (auth.user.id === comment.author.id ||
-      auth.user.role === "admin");
+  const canEdit = isAuthor || isAdmin;
+  const canDelete = isAuthor || isAdmin;
+  const showActions =
+    !isEditing && (canReply || canEdit || canDelete);
 
   function handleReplyCreated() {
     setIsReplying(false);
+    onChange();
+  }
+
+  function handleEdited() {
+    setIsEditing(false);
     onChange();
   }
 
@@ -58,9 +68,18 @@ export default function CommentItem({
         {comment.edited_at && " · düzenlendi"}
       </p>
 
-      <p className="comment__body">{comment.body}</p>
+      {isEditing ? (
+        <CommentForm
+          postId={postId}
+          comment={comment}
+          onSaved={handleEdited}
+          onCancel={() => setIsEditing(false)}
+        />
+      ) : (
+        <p className="comment__body">{comment.body}</p>
+      )}
 
-      {(canReply || canDelete) && (
+      {showActions && (
         <div className="comment__actions">
           {canReply && (
             <button
@@ -70,6 +89,16 @@ export default function CommentItem({
               onClick={() => setIsReplying(true)}
             >
               Cevapla
+            </button>
+          )}
+
+          {canEdit && (
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setIsEditing(true)}
+            >
+              Düzenle
             </button>
           )}
 
@@ -96,7 +125,7 @@ export default function CommentItem({
         <CommentForm
           postId={postId}
           parentId={comment.id}
-          onCreated={handleReplyCreated}
+          onSaved={handleReplyCreated}
           onCancel={() => setIsReplying(false)}
         />
       )}

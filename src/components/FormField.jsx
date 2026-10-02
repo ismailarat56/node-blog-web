@@ -1,21 +1,33 @@
 import { useId } from "react";
 
-export default function FormField({ label, name, hint, ...inputProps }) {
+export default function FormField({
+  label,
+  hint,
+  error,
+  as: Control = "input",
+  ...controlProps
+}) {
   const id = useId();
-  const hintId = `${id}-hint`;
+  const messageId = `${id}-message`;
+  const message = error ?? hint;
 
   return (
     <div className="form__field">
       <label htmlFor={id}>{label}</label>
-      <input
-        {...inputProps}
+
+      <Control
         id={id}
-        name={name}
-        aria-describedby={hint ? hintId : undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={message ? messageId : undefined}
+        {...controlProps}
       />
-      {hint && (
-        <p id={hintId} className="form__hint">
-          {hint}
+
+      {message && (
+        <p
+          id={messageId}
+          className={error ? "form__error" : "form__hint"}
+        >
+          {message}
         </p>
       )}
     </div>

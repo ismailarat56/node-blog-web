@@ -29,6 +29,7 @@ export default function Header() {
         <nav className="header__nav" aria-label="Hesap">
           {auth.status === "authenticated" && (
             <>
+              <NavLink to="/dashboard">Yazılarım</NavLink>
               <NavLink to="/account">{auth.user.name}</NavLink>
               <button
                 type="button"

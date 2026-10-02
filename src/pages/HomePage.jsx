@@ -4,18 +4,9 @@ import Pagination from "../components/Pagination.jsx";
 import PostList from "../components/PostList.jsx";
 import StatusMessage from "../components/StatusMessage.jsx";
 import useApi from "../hooks/useApi.js";
+import { parsePositiveInt } from "../utils/parse-positive-int.js";
 
 const PAGE_SIZE = 4;
-
-function parsePositiveInt(value) {
-  const number = Number(value);
-
-  if (Number.isInteger(number) && number > 0) {
-    return number;
-  }
-
-  return null;
-}
 
 function buildPostsPath(categoryId, page) {
   const params = new URLSearchParams({
