@@ -42,10 +42,10 @@ Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine ta
 
 - `src/api/`: API isteklerini ve hata dönüşümünü yönetir.
 - `src/auth/`: Oturum state'ini, Context'i ve token saklamayı yönetir.
-- `src/components/`: Sayfalarda kullanılan arayüz bileşenlerini içerir.
-- `src/hooks/`: Veri, yüklenme ve hata durumunu yöneten `useApi` gibi ortak hook'ları içerir.
+- `src/components/`: Sayfalarda kullanılan arayüz bileşenlerini içerir. `AccountLayout.jsx` hesap menüsünü ve alt sayfaları birleştirir; `CodeField.jsx` doğrulama kodundan rakam dışı karakterleri temizler.
+- `src/hooks/`: Veri, yüklenme ve hata durumunu yöneten `useApi` gibi ortak hook'ları içerir. `useCountdown.js`, her çağrı için bağımsız state ve zamanlayıcıyla geri sayım sağlar.
 - `src/pages/`: Route'lara karşılık gelen sayfa bileşenlerini içerir.
-- `src/utils/`: Tarih biçimlendirme gibi yardımcı fonksiyonları içerir.
+- `src/utils/`: Tarih biçimlendirme gibi yardımcı fonksiyonları içerir. `code-errors.js` kod işlemlerinin hata mesajlarını, `format-countdown.js` geri sayımın dakika:saniye biçimini ortaklaştırır.
 
 ## Sayfalar
 
@@ -55,8 +55,12 @@ Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine ta
 | `/posts/:slug`              | `PostDetailPage`                 | `GET /api/v1/public/posts/:slug`, `GET /api/v1/public/posts/:slug/comments`, `POST /api/v1/posts/:id/comments`, `PATCH /api/v1/comments/:id` (yorum düzenleme), `DELETE /api/v1/comments/:id`                                                                                                                                                                       |
 | `/login`                    | `LoginPage`                      | `POST /api/v1/auth/login`                                                                                                                                                                                                                                                                                                                                           |
 | `/register`                 | `RegisterPage` (henüz eklenmedi) | `POST /api/v1/auth/register`                                                                                                                                                                                                                                                                                                                                        |
+| `/forgot-password` | `ForgotPasswordPage` | `POST /api/v1/auth/password/forgot` (`useActionState`) |
+| `/reset-password` | `ResetPasswordPage` | `POST /api/v1/auth/password/reset`, `POST /api/v1/auth/password/forgot` (yeni kod) |
 | `/verify-email`             | `VerifyEmailPage`                | `POST /api/v1/auth/email/verify`, `POST /api/v1/auth/email/verify/resend`                                                                                                                                                                                                                                                                                           |
-| `/account`                  | `AccountPage`                    | Korumalı; veri `AuthContext`'ten gelir.                                                                                                                                                                                                                                                                                                                             |
+| `/account` | `AccountPage` | Korumalı; `AccountLayout` içinde (Bilgiler · Parola · E-posta), veri `AuthContext`'ten gelir. |
+| `/account/password` | `ChangePasswordPage` | Korumalı; `POST /api/v1/auth/password/change-code`, `PATCH /api/v1/auth/password` |
+| `/account/email` | `ChangeEmailPage` | Korumalı; `POST /api/v1/auth/email/change`, `POST /api/v1/auth/email/change/confirm` (`useReducer`) |
 | `/dashboard`                | `DashboardPage`                  | Korumalı; `GET /api/v1/posts?user_id=...`, `DELETE /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/restore`                                                                                                                                                                                                                                                            |
 | `/dashboard/posts/new`      | `NewPostPage`                    | Korumalı; `POST /api/v1/posts`, `GET /api/v1/public/categories`                                                                                                                                                                                                                                                                                                     |
 | `/dashboard/posts/:id/edit` | `EditPostPage`                   | Korumalı; `GET` ve `PATCH /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/publish`, `PATCH /api/v1/posts/:id/unpublish`, `PUT` ve `DELETE /api/v1/posts/:id/cover`, `GET /api/v1/posts/:id/comments?include_hidden=1&limit=50`, `PATCH /api/v1/comments/:id/hide`, `PATCH /api/v1/comments/:id/unhide`, `DELETE /api/v1/comments/:id`, `GET /api/v1/public/categories` |
@@ -73,6 +77,10 @@ Access token, `node-blog.access-token` anahtarıyla `sessionStorage`'da tutulur.
 Çıkışta `POST /api/v1/auth/logout` sunucuda token'ı iptal eder; ardından tarayıcıdaki token ve kullanıcı state'i temizlenir. API isteği başarısız olsa da yerel oturum kapatılır.
 
 Oturumlu istekler `authRequest` üzerinden gönderilir. Bir istek `401` döndürürse yerel oturum kapatılır ve gelinen adres korunarak `/login` sayfasına yönlendirilir. Kullanıcı yeniden giriş yaptığında aynı adrese döner. `403` yanıtında oturum korunur; yetki hatası ilgili bileşende gösterilir.
+
+Parola değişince veya sıfırlanınca API bütün oturumları geçersiz kılar: token'ın `iat` değeri `password_changed_at` değerinden eskiyse (`iat < password_changed_at`) token bayat sayılır. Parola değiştirme isteğinin token'ı ayrıca iptal edilir. Diğer cihazlar bunu sonraki yetkili isteklerinde öğrenir. Arayüz, başarılı parola değişikliğinde `closeSession` ile kendi token ve kullanıcı state'ini temizleyip e-posta ve başarı mesajıyla `/login` sayfasına gider; merkezi 401 yönetimi de aynı fonksiyonu kullanır. `closeSession`, oturum temizliği ve `replace: true` ile yönlendirmeyi `startTransition` içinde toplar. Böylece oturum kapanmışken korumalı adresin hâlâ ekranda olduğu ara render'da `RequireAuth`'un kendi yönlendirmesiyle mesajı ve e-postayı değiştirmesi önlenir. Tokensız parola sıfırlama sayfası ise başarı mesajı ve e-postayla doğrudan giriş sayfasına yönlenir.
+
+E-posta değişikliği onaylandığında API'nin döndürdüğü güncel kullanıcı `updateUser(data)` ile Context'e yazılır. Hesap bilgileri ve tamamlanma ekranı adresi `auth.user` üzerinden okuduğu için yeni adresi hemen kullanır. Sunucudaki değişiklik Context'teki eski kopyayı kendiliğinden yenilemez; ayrıca `/auth/me` isteği göndermeye gerek yoktur.
 
 ## Yazar Paneli
 
@@ -95,7 +103,10 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 - Oturum düşünce yazılmakta olan yorum kaybolur.
 - Yeni kod bekleme süresi, sayfaya kayıttan `codeSent` bilgisiyle gelince gösterilir; login'den gelince arayüz önceki kodun ne zaman gönderildiğini bilemez. Sayfadan yeni kod istendikten sonra geri sayım başlar.
 - Cevabı olan bir yorum silinince cevapları da listeden kaybolur.
-- Şifremi unuttum ve parola değiştirme sayfaları yok.
+- E-posta değişikliğinin adımları bellekte; sayfa yenilenince akış baştan başlar.
+- Arayüz bir kodun kaç deneme hakkı kaldığını bilmiyor.
+- “Parolayı göster” yalnız sıfırlama ve parola değiştirme sayfalarında; kayıt ve girişte yok (kayıt sayfası henüz eklenmedi).
+- Kodlar geliştirmede dev posta kutusundan okunuyor; production'da gerçek mail gerekir.
 - Eşzamanlı düzenlemede son yazan kazanır; sürüm kontrolü yok.
 - “Yayınla” düğmesi formdaki kaydedilmemiş değişiklikleri göndermez.
 - Kaydedilmemiş değişiklik uyarısı yok; sayfadan çıkınca değişiklikler kaybolur.
@@ -119,8 +130,8 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 
 ## Sonraki Adımlar
 
-- Hesap ayarları: kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme (11.09 ve 15.09 API'leri).
-- Admin paneli: kategori yönetimi, silinmiş yazılar ve geri getirme.
+- Admin paneli: kategori yönetimi, silinmiş yazılar ve geri getirme, kullanıcı rolleri.
+- Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
 - API: yukarıdaki dört sorunu düzeltmek; refresh token ve `httpOnly` cookie eklemek.
 - Veri çekmeyi TanStack Query'ye taşımak (önbellek, önceki veriyi tutma).
 - `dist/` klasörünü compose'taki nginx ile servis etmek.

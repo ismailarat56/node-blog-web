@@ -1,21 +1,18 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   useLocation,
   useNavigate,
   useSearchParams,
 } from "react-router";
 import { apiRequest } from "../api/client.js";
+import CodeField from "../components/CodeField.jsx";
 import FormField from "../components/FormField.jsx";
 import StatusMessage from "../components/StatusMessage.jsx";
+import useCountdown from "../hooks/useCountdown.js";
+import { describeCodeError } from "../utils/code-errors.js";
+import { formatCountdown } from "../utils/format-countdown.js";
 
 const RESEND_WAIT_SECONDS = 60;
-
-function formatCountdown(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const rest = String(seconds % 60).padStart(2, "0");
-
-  return `${minutes}:${rest}`;
-}
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
@@ -31,23 +28,9 @@ export default function VerifyEmailPage() {
   const [notice, setNotice] = useState(
     location.state?.notice ?? null
   );
-  const [cooldown, setCooldown] = useState(
+  const countdown = useCountdown(
     location.state?.codeSent ? RESEND_WAIT_SECONDS : 0
   );
-
-  const isCoolingDown = cooldown > 0;
-
-  useEffect(() => {
-    if (!isCoolingDown) {
-      return;
-    }
-
-    const timerId = setInterval(() => {
-      setCooldown((current) => Math.max(current - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(timerId);
-  }, [isCoolingDown]);
 
   async function handleVerify(event) {
     event.preventDefault();
@@ -87,10 +70,10 @@ export default function VerifyEmailPage() {
       );
 
       setNotice(message);
-      setCooldown(RESEND_WAIT_SECONDS);
+      countdown.start(RESEND_WAIT_SECONDS);
     } catch (resendError) {
       setError(resendError);
-      setCooldown(resendError.retryAfter ?? 0);
+      countdown.start(resendError.retryAfter ?? 0);
     }
   }
 
@@ -113,24 +96,11 @@ export default function VerifyEmailPage() {
           onChange={(event) => setEmail(event.target.value)}
         />
 
-        <FormField
-          label="Doğrulama kodu"
-          name="code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          required
-          hint="E-postana gelen 6 haneli kod. 10 dakika geçerli."
-          value={code}
-          onChange={(event) =>
-            setCode(event.target.value.replace(/\D/g, ""))
-          }
-        />
+        <CodeField value={code} onChange={setCode} />
 
         {error && (
           <StatusMessage type="error">
-            {error.message}
+            {describeCodeError(error)}
           </StatusMessage>
         )}
 
@@ -146,11 +116,11 @@ export default function VerifyEmailPage() {
           <button
             type="button"
             className="link-button"
-            disabled={isCoolingDown || !email}
+            disabled={countdown.isRunning || !email}
             onClick={handleResend}
           >
-            {isCoolingDown
-              ? `Yeni kod iste (${formatCountdown(cooldown)})`
+            {countdown.isRunning
+              ? `Yeni kod iste (${formatCountdown(countdown.seconds)})`
               : "Yeni kod iste"}
           </button>
         </div>

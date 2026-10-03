@@ -120,6 +120,9 @@ export default function LoginPage() {
           </button>
 
           <Link to="/register">Hesabın yok mu? Kayıt ol</Link>
+          <Link to="/forgot-password" state={{ email }}>
+            Şifremi unuttum
+          </Link>
         </div>
       </form>
     </section>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { apiRequest } from "../api/client.js";
 import { AuthContext } from "./AuthContext.js";
@@ -86,17 +86,25 @@ export default function AuthProvider({ children }) {
     endSession();
   }
 
+  function updateUser(nextUser) {
+    setUser(nextUser);
+  }
+
+  function closeSession(loginState) {
+    startTransition(() => {
+      endSession();
+      navigate("/login", { replace: true, state: loginState });
+    });
+  }
+
   async function authRequest(path, options = {}) {
     try {
       return await apiRequest(path, { ...options, token });
     } catch (error) {
       if (error.status === 401) {
-        endSession();
-        navigate("/login", {
-          state: {
-            from: location,
-            notice: "Oturumun kapandı. Tekrar giriş yap.",
-          },
+        closeSession({
+          from: location,
+          notice: "Oturumun kapandı. Tekrar giriş yap.",
         });
       }
 
@@ -109,6 +117,8 @@ export default function AuthProvider({ children }) {
     user,
     login,
     logout,
+    closeSession,
+    updateUser,
     authRequest,
   };
 

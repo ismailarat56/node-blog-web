@@ -10,7 +10,7 @@ export default function AccountPage() {
   const { user } = useAuth();
 
   return (
-    <section className="auth-page">
+    <section>
       <title>Hesabım · Node Blog</title>
 
       <h1 className="page-title">Hesabım</h1>
