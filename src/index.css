@@ -592,3 +592,50 @@ a.button {
   border-style: dashed;
   background: transparent;
 }
+
+/* 03.10: hesap ayarları */
+
+.account__nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account__nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.account__nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+}
+
+.step-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.step-list [aria-current="step"] {
+  color: var(--text);
+  font-weight: 700;
+}
