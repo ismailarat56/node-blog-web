@@ -639,3 +639,117 @@ a.button {
   color: var(--text);
   font-weight: 700;
 }
+
+/* 04.10: yönetim paneli */
+
+.admin__nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin__nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.admin__nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+
+.toolbar input[type="search"] {
+  min-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.admin-panel {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.admin-panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.sort-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+.post-table tr[data-deleted="true"] td {
+  color: var(--muted);
+}
+
+.badge--active {
+  background: #e3f1e6;
+  color: #1f6b35;
+}
+
+.badge--inactive {
+  background: #fff4dc;
+  color: #7a5300;
+}
+
+.badge--deleted {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.badge--admin {
+  background: #e5ebfb;
+  color: var(--accent);
+}
+
+.button--secondary {
+  background: #e9e7e1;
+  color: var(--text);
+}
+
+.button--danger {
+  background: var(--error-text);
+}
+
+.dialog {
+  max-width: 440px;
+  padding: 24px;
+  border: 0;
+  border-radius: 12px;
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
