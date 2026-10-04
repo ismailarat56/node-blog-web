@@ -1,7 +1,10 @@
+import { lazy } from "react";
 import { Route, Routes } from "react-router";
 import AccountLayout from "./components/AccountLayout.jsx";
+import AdminLayout from "./components/AdminLayout.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
 import Layout from "./components/Layout.jsx";
+import RequireAdmin from "./components/RequireAdmin.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import AccountPage from "./pages/AccountPage.jsx";
 import ChangeEmailPage from "./pages/ChangeEmailPage.jsx";
@@ -16,6 +19,16 @@ import NotFoundPage from "./pages/NotFoundPage.jsx";
 import PostDetailPage from "./pages/PostDetailPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
+
+const AdminCategoriesPage = lazy(
+  () => import("./pages/admin/AdminCategoriesPage.jsx")
+);
+const AdminPostsPage = lazy(
+  () => import("./pages/admin/AdminPostsPage.jsx")
+);
+const AdminUsersPage = lazy(
+  () => import("./pages/admin/AdminUsersPage.jsx")
+);
 
 export default function App() {
   return (
@@ -53,6 +66,20 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="posts/new" element={<NewPostPage />} />
           <Route path="posts/:id/edit" element={<EditPostPage />} />
+        </Route>
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminLayout />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        >
+          <Route index element={<AdminCategoriesPage />} />
+          <Route path="posts" element={<AdminPostsPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

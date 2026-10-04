@@ -30,6 +30,9 @@ export default function Header() {
           {auth.status === "authenticated" && (
             <>
               <NavLink to="/dashboard">Yazılarım</NavLink>
+              {auth.user.role === "admin" && (
+                <NavLink to="/admin">Yönetim</NavLink>
+              )}
               <NavLink to="/account">{auth.user.name}</NavLink>
               <button
                 type="button"

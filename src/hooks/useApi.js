@@ -37,6 +37,13 @@ export default function useApi(path, request = apiGet) {
     setVersion((current) => current + 1);
   }
 
+  function updateData(update) {
+    setResult((current) => ({
+      ...current,
+      data: update(current.data),
+    }));
+  }
+
   const isCurrent = result.path === path;
 
   return {
@@ -45,5 +52,6 @@ export default function useApi(path, request = apiGet) {
     meta: isCurrent ? result.meta : null,
     error: isCurrent ? result.error : null,
     reload,
+    updateData,
   };
 }

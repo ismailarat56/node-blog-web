@@ -43,9 +43,18 @@ Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine ta
 - `src/api/`: API isteklerini ve hata dönüşümünü yönetir.
 - `src/auth/`: Oturum state'ini, Context'i ve token saklamayı yönetir.
 - `src/components/`: Sayfalarda kullanılan arayüz bileşenlerini içerir. `AccountLayout.jsx` hesap menüsünü ve alt sayfaları birleştirir; `CodeField.jsx` doğrulama kodundan rakam dışı karakterleri temizler.
+- `src/components/RequireAdmin.jsx`: Oturum kontrolünden sonra admin rolünü kontrol eden arayüz kapısı.
+- `src/components/AdminLayout.jsx`: Yönetim sekmeleri, `Outlet` ve sayfa yüklenirken gösterilen `Suspense` sınırı.
+- `src/components/ConfirmDialog.jsx`: `showModal()` ile açılan, ortak silme ve değişiklik onay penceresi.
+- `src/components/admin/`: Yönetim tablolarına özel `SortableHeader`, `CategoryRow`, `CategoryForm`, `AdminPostRow` ve `UserRow` bileşenleri.
 - `src/hooks/`: Veri, yüklenme ve hata durumunu yöneten `useApi` gibi ortak hook'ları içerir. `useCountdown.js`, her çağrı için bağımsız state ve zamanlayıcıyla geri sayım sağlar.
+- `src/hooks/useDebouncedValue.js`: Arama değeri değişmeyi bıraktığında gecikmeli değeri üretir; bekleyen zamanlayıcıyı cleanup ile temizler.
 - `src/pages/`: Route'lara karşılık gelen sayfa bileşenlerini içerir.
+- `src/pages/admin/`: `lazy` ile yüklenen kategori, yazı ve kullanıcı yönetimi sayfaları.
 - `src/utils/`: Tarih biçimlendirme gibi yardımcı fonksiyonları içerir. `code-errors.js` kod işlemlerinin hata mesajlarını, `format-countdown.js` geri sayımın dakika:saniye biçimini ortaklaştırır.
+- `src/utils/slugify.js`: Türkçe karakter dönüşümü ve uzunluk sınırıyla addan slug önerisi üretir.
+- `src/utils/category-form.js`: Boş kategori formunu ve API kaydından form değerlerine dönüşümü tanımlar.
+- `src/utils/category-status.js`: Silindi, Aktif ve Pasif etiketlerini belirler; silinme durumuna öncelik verir.
 
 ## Sayfalar
 
@@ -64,7 +73,10 @@ Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine ta
 | `/dashboard`                | `DashboardPage`                  | Korumalı; `GET /api/v1/posts?user_id=...`, `DELETE /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/restore`                                                                                                                                                                                                                                                            |
 | `/dashboard/posts/new`      | `NewPostPage`                    | Korumalı; `POST /api/v1/posts`, `GET /api/v1/public/categories`                                                                                                                                                                                                                                                                                                     |
 | `/dashboard/posts/:id/edit` | `EditPostPage`                   | Korumalı; `GET` ve `PATCH /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/publish`, `PATCH /api/v1/posts/:id/unpublish`, `PUT` ve `DELETE /api/v1/posts/:id/cover`, `GET /api/v1/posts/:id/comments?include_hidden=1&limit=50`, `PATCH /api/v1/comments/:id/hide`, `PATCH /api/v1/comments/:id/unhide`, `DELETE /api/v1/comments/:id`, `GET /api/v1/public/categories` |
-| `*`                         | `NotFoundPage`                   | —                                                                                                                                                                                                                                                                                                                                                                   |
+| `/admin` | `AdminCategoriesPage` | Korumalı + admin; `GET`/`POST /api/v1/categories`, `PATCH`/`DELETE /api/v1/categories/:id`, `PATCH /api/v1/categories/:id/restore` (`lazy`) |
+| `/admin/posts` | `AdminPostsPage` | Korumalı + admin; `GET /api/v1/posts?include_deleted=1` (silinenleri göster seçiliyken), `DELETE /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/restore` (`lazy`) |
+| `/admin/users` | `AdminUsersPage` | Korumalı + admin; `GET /api/v1/users`, `PATCH /api/v1/users/:id/role`, `PATCH /api/v1/users/:id` (`lazy`) |
+| `*` | `NotFoundPage` | — |
 
 `/register` planlanan kayıt sayfasıdır; mevcut uygulamada `RegisterPage.jsx` ve bu rota henüz yoktur.
 
@@ -94,8 +106,20 @@ Kapak seçimi kontrolsüz dosya input'u ile yapılır; yerel önizleme için olu
 
 Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; yorumları gizleme, gösterme ve silme araçları sunar. Public sayfada yorum metnini yalnız yorum yazarı veya admin düzenleyebilir. Asıl yetki denetimleri API'dedir.
 
+## Yönetim Paneli
+
+`RequireAuth` oturumu kontrol eder; içindeki `RequireAdmin`, admin olmayan kullanıcıya erişememe nedenini gösteren bir arayüz kolaylığıdır. Asıl yetkiyi API denetler. Arayüzdeki rol, girişte veya `/auth/me` ile alınan kullanıcı bilgisinin bir kopyasıdır; başka bir oturumda rol değişirse sayfa yenilenene kadar bayat kalabilir. Menüde bağlantıyı gizlemek API erişimini güvenceye almaz.
+
+Yönetim sayfaları modül seviyesindeki `lazy` tanımlarıyla ayrı JavaScript dosyalarına bölünür. Admin olmayan okuyucu korumalı sayfayı render edemediği için normal gezinmede bu sayfa dosyalarını indirmez. `AdminLayout` içindeki `Suspense`, içerik yüklenirken mesaj gösterir; sekmeler görünür kalır. Kod bölme bir yetkilendirme mekanizması değildir.
+
+Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgili düğme kapanır. Başarıda API'nin döndürdüğü kayıt, `startTransition` içinde `useApi.updateData` ile aynı geçişte listeye yazılır; ek liste isteği gerekmez. Hatada asıl liste değişmez, geçiş bitince React geçici değeri atar ve rozet eski durumuna döner; hata mesajı ayrıca gösterilir.
+
 ## Bilinen Sınırlamalar
 
+- Yönetim tablolarının arama, sıralama ve filtreleri adreste değil, component state'inde tutulur; sayfa yenilenince sıfırlanır.
+- Kategori yönetimi ilk 50 kategoriyi gösterir; sayfalama yok.
+- Kullanıcı silme ve geri getirme arayüzü yok; yorum moderasyonu yalnız yazar panelinde.
+- Arayüzdeki rol, başka bir oturumda rol değiştikten sonra sayfa yenilenene kadar eski kalır.
 - Token `sessionStorage`'da; XSS olursa JavaScript tarafından okunabilir (`httpOnly` cookie yok).
 - Refresh token yok; token'ın 15 dakikalık süresi dolunca yeniden giriş gerekir.
 - Oturum yeni sekmeye taşınmaz; sekme kapanınca biter.
@@ -123,6 +147,11 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 
 ## API'de Bulduğum Sorunlar
 
+- Silinmiş bir kategorideki yazı geri getirilebiliyor; restore işlemi kategoriyi kontrol etmiyor. Kategori silinmişse `409` dönmeli.
+- Admin kendi hesabını pasifleştirebilir veya silebilir. Kendi rolünü değiştirmede `409 CANNOT_CHANGE_OWN_ROLE` koruması var; aktiflik ve silme işlemlerinde yok. Arayüz kendi satırındaki rol ve aktiflik düğmelerini kapatır. Tek admin kendi hesabını pasifleştirir veya silerse sonraki yetkili istekte oturumu kapanır ve uygulama üzerinden hesabını geri açacak başka admin kalmaz; bu işlemler denenmemelidir.
+- Kullanıcı listesi bilinmeyen sorgu parametrelerini sessizce yok sayıyor; rol filtresi yok. Kategori listesi ise bilinmeyen parametreye `422` veriyor.
+- Yazı listesinde `include_deleted=1`, silinen yazıları mevcut listeye ekler; yalnız silinenleri getiren bir parametre yok. Yönetim tablosunda silinen yazılar diğer yazılarla birlikte `updated_at` sırasıyla gösterilir.
+- `LIKE` aramasında `%` ve `_` karakterleri kaçırılmıyor; `%` araması her şeyi getiriyor.
 - JSON gövde sınırı `20 KB` (20.480 bayt), içerik sınırı ise 50.000 karakter. Gövde sınırını aşan uzun yazılar validator'a ulaşmadan `413` alıyor; hata kodu `INTERNAL_SERVER_ERROR` oluyor. Gövde sınırı içerik sınırıyla uyumlu hâle getirilmeli ve bu hata için uygun bir kod dönülmeli.
 - Boundary'siz multipart istek, `400` yerine `500` dönüyor. Bozuk multipart gövdeleri istemci hatası olarak ele alınmalı.
 - Gizli bir üst yorumun cevapları public listede görünmüyor, ancak `comment_count` görünür durumdaki bu cevapları sayıyor. Listeleme ve sayım kuralları aynı görünürlük tanımını kullanmalı.
@@ -130,9 +159,11 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 
 ## Sonraki Adımlar
 
-- Admin paneli: kategori yönetimi, silinmiş yazılar ve geri getirme, kullanıcı rolleri.
+- API: restore sırasında kategori kontrolü, admin'in kendini kilitlemesine karşı koruma, kullanıcı listesinde katı sorgu doğrulaması ve rol filtresi.
+- Kullanıcı silme ve geri getirme, admin yorum moderasyonu.
+- Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi.
 - Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
-- API: yukarıdaki dört sorunu düzeltmek; refresh token ve `httpOnly` cookie eklemek.
+- API: yukarıdaki diğer sorunları düzeltmek; refresh token ve `httpOnly` cookie eklemek.
 - Veri çekmeyi TanStack Query'ye taşımak (önbellek, önceki veriyi tutma).
 - `dist/` klasörünü compose'taki nginx ile servis etmek.
 - TypeScript.
