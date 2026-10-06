@@ -1,0 +1,107 @@
+{
+  "verified_at": "2026-10-06T13:17:50.265Z",
+  "implementation_commit": "b58eb8c4d0ed305258386c9a6cf4841536c34aa5",
+  "node": "v24.19.0",
+  "vite": "8.3.1",
+  "react": "19.3.0",
+  "source_sha256": {
+    "src/App.jsx": "bdd2a32d1735b1bb4d74237648782ece0a1a835d0e80c5393f506d0428723ffb",
+    "src/components/AdminLayout.jsx": "d816677004d8dde74799505927ae6a222b7e3386e15098bc7bddfd134ae96d36"
+  },
+  "method": "Same source and dependencies; eager comparison only replaces the three lazy imports in memory. gzip sizes use node:zlib gzipSync defaults. Browser checks use the production dist build and mocked GET API responses; no live API writes.",
+  "lazy": {
+    "initial_js_bytes": 304564,
+    "initial_js_gzip_bytes": 92889,
+    "files": [
+      {
+        "file": "assets/AdminCategoriesPage-CUClI5Bv.js",
+        "initial": false,
+        "bytes": 7930,
+        "gzip_bytes": 3083
+      },
+      {
+        "file": "assets/AdminPostsPage-zBxYKa1F.js",
+        "initial": false,
+        "bytes": 4095,
+        "gzip_bytes": 1616
+      },
+      {
+        "file": "assets/AdminUsersPage-BC-7kMMV.js",
+        "initial": false,
+        "bytes": 4732,
+        "gzip_bytes": 1870
+      },
+      {
+        "file": "assets/index-D-aWvg7Y.js",
+        "initial": true,
+        "bytes": 304564,
+        "gzip_bytes": 92889
+      },
+      {
+        "file": "assets/SortableHeader-SXEGMbXp.js",
+        "initial": false,
+        "bytes": 357,
+        "gzip_bytes": 272
+      },
+      {
+        "file": "assets/useDebouncedValue-sLqACAV0.js",
+        "initial": false,
+        "bytes": 894,
+        "gzip_bytes": 487
+      }
+    ]
+  },
+  "eager_comparison": {
+    "initial_js_bytes": 321192,
+    "initial_js_gzip_bytes": 96358,
+    "files": [
+      {
+        "file": "assets/index-D-9ek109.js",
+        "initial": true,
+        "bytes": 321192,
+        "gzip_bytes": 96358
+      }
+    ]
+  },
+  "initial_js_gzip_saved_bytes": 3469,
+  "browser_checks": [
+    {
+      "role": "anonymous",
+      "home_admin_chunk_requests": 0,
+      "denied_admin_chunk_requests": 0,
+      "denied_admin_api_requests": 0
+    },
+    {
+      "role": "user",
+      "home_admin_chunk_requests": 0,
+      "denied_admin_chunk_requests": 0,
+      "denied_admin_api_requests": 0
+    },
+    {
+      "role": "admin",
+      "home_admin_chunk_requests": 0
+    },
+    {
+      "route": "/admin",
+      "requested_chunk": "AdminCategoriesPage-CUClI5Bv.js",
+      "suspense_fallback_visible": true,
+      "admin_navigation_visible_while_loading": true,
+      "page_loaded": true
+    },
+    {
+      "route": "/admin/posts",
+      "requested_chunk": "AdminPostsPage-zBxYKa1F.js",
+      "suspense_fallback_visible": true,
+      "admin_navigation_visible_while_loading": true,
+      "page_loaded": true
+    },
+    {
+      "route": "/admin/users",
+      "requested_chunk": "AdminUsersPage-BC-7kMMV.js",
+      "suspense_fallback_visible": true,
+      "admin_navigation_visible_while_loading": true,
+      "page_loaded": true
+    }
+  ],
+  "browser_errors": []
+}
