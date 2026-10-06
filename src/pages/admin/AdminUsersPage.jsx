@@ -17,7 +17,13 @@ const ACTIVE_FILTERS = [
   { value: 0, label: "Pasif" },
 ];
 
-function buildUsersPath({ search, active, sort, page }) {
+function buildUsersPath({
+  search,
+  active,
+  showDeleted,
+  sort,
+  page,
+}) {
   const params = new URLSearchParams({
     sort_by: sort.by,
     sort_order: sort.order,
@@ -33,10 +39,23 @@ function buildUsersPath({ search, active, sort, page }) {
     params.set("is_active", String(active));
   }
 
+  if (showDeleted) {
+    params.set("include_deleted", "1");
+  }
+
   return `/api/v1/users?${params}`;
 }
 
 function describeChange({ user, field, value }) {
+  if (field === "deleted") {
+    return {
+      title: "Kullanıcıyı sil",
+      text: `${user.name} giriş yapamayacak ve listeden çıkacak. Yazıları ve yorumları yerinde kalır. "Silinenleri göster" ile geri getirebilirsin.`,
+      confirmLabel: "Sil",
+      danger: true,
+    };
+  }
+
   if (field === "role" && value === "admin") {
     return {
       title: "Yönetici yap",
@@ -65,14 +84,23 @@ function describeChange({ user, field, value }) {
 }
 
 function buildChangeRequest({ user, field, value }) {
+  if (field === "deleted") {
+    return {
+      method: "DELETE",
+      path: `/api/v1/users/${user.id}`,
+    };
+  }
+
   if (field === "role") {
     return {
+      method: "PATCH",
       path: `/api/v1/users/${user.id}/role`,
       body: { role: value },
     };
   }
 
   return {
+    method: "PATCH",
     path: `/api/v1/users/${user.id}`,
     body: { is_active: value },
   };
@@ -82,9 +110,11 @@ export default function AdminUsersPage() {
   const auth = useAuth();
   const [search, setSearch] = useState("");
   const [active, setActive] = useState(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [sort, setSort] = useState({ by: "created_at", order: "desc" });
   const [page, setPage] = useState(1);
   const [notice, setNotice] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [pendingChange, setPendingChange] = useState(null);
   const [changeError, setChangeError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -95,7 +125,13 @@ export default function AdminUsersPage() {
   );
 
   const users = useApi(
-    buildUsersPath({ search: debouncedSearch, active, sort, page }),
+    buildUsersPath({
+      search: debouncedSearch,
+      active,
+      showDeleted,
+      sort,
+      page,
+    }),
     auth.authRequest
   );
 
@@ -106,6 +142,11 @@ export default function AdminUsersPage() {
 
   function handleActiveChange(nextActive) {
     setActive(nextActive);
+    setPage(1);
+  }
+
+  function handleShowDeletedChange(event) {
+    setShowDeleted(event.target.checked);
     setPage(1);
   }
 
@@ -125,6 +166,7 @@ export default function AdminUsersPage() {
 
   function askChange(change) {
     setNotice(null);
+    setActionError(null);
     setChangeError(null);
     setPendingChange(change);
   }
@@ -136,14 +178,15 @@ export default function AdminUsersPage() {
 
   async function handleConfirm() {
     const { user } = pendingChange;
-    const { path, body } = buildChangeRequest(pendingChange);
+    const { method, path, body } =
+      buildChangeRequest(pendingChange);
 
     setSaving(true);
     setChangeError(null);
 
     try {
       const { message } = await auth.authRequest(path, {
-        method: "PATCH",
+        method,
         body,
       });
 
@@ -154,6 +197,23 @@ export default function AdminUsersPage() {
       setChangeError(saveError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRestore(user) {
+    setNotice(null);
+    setActionError(null);
+
+    try {
+      const { message } = await auth.authRequest(
+        `/api/v1/users/${user.id}/restore`,
+        { method: "PATCH" }
+      );
+
+      setNotice(`${user.name}: ${message}`);
+      users.reload();
+    } catch (restoreError) {
+      setActionError(restoreError);
     }
   }
 
@@ -172,6 +232,15 @@ export default function AdminUsersPage() {
           value={search}
           onChange={handleSearchChange}
         />
+
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={showDeleted}
+            onChange={handleShowDeletedChange}
+          />
+          Silinenleri göster
+        </label>
 
         {users.meta && (
           <span className="form__hint">{users.meta.total} kullanıcı</span>
@@ -193,6 +262,10 @@ export default function AdminUsersPage() {
       </nav>
 
       {notice && <StatusMessage>{notice}</StatusMessage>}
+
+      {actionError && (
+        <StatusMessage type="error">{actionError.message}</StatusMessage>
+      )}
 
       {users.loading && (
         <StatusMessage>Kullanıcılar yükleniyor...</StatusMessage>
@@ -242,6 +315,7 @@ export default function AdminUsersPage() {
                   user={user}
                   isSelf={user.id === auth.user.id}
                   onChange={askChange}
+                  onRestore={handleRestore}
                 />
               ))}
             </tbody>
@@ -258,7 +332,8 @@ export default function AdminUsersPage() {
       <ConfirmDialog
         open={pendingChange !== null}
         title={dialog?.title}
-        confirmLabel="Onayla"
+        confirmLabel={dialog?.confirmLabel ?? "Onayla"}
+        danger={dialog?.danger}
         busy={saving}
         onConfirm={handleConfirm}
         onClose={closeDialog}

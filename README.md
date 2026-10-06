@@ -93,7 +93,7 @@ npm run lint
 | `/dashboard/posts/:id/edit` | `EditPostPage`                   | Korumalı; `GET` ve `PATCH /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/publish`, `PATCH /api/v1/posts/:id/unpublish`, `PUT` ve `DELETE /api/v1/posts/:id/cover`, `GET /api/v1/posts/:id/comments?include_hidden=1&limit=50`, `PATCH /api/v1/comments/:id/hide`, `PATCH /api/v1/comments/:id/unhide`, `DELETE /api/v1/comments/:id`, `GET /api/v1/public/categories` |
 | `/admin` | `AdminCategoriesPage` | Korumalı + admin; `GET`/`POST /api/v1/categories`, `PATCH`/`DELETE /api/v1/categories/:id`, `PATCH /api/v1/categories/:id/restore` (`lazy`) |
 | `/admin/posts` | `AdminPostsPage` | Korumalı + admin; `GET /api/v1/posts?include_deleted=1` (silinenleri göster seçiliyken), `DELETE /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/restore` (`lazy`) |
-| `/admin/users` | `AdminUsersPage` | Korumalı + admin; `GET /api/v1/users`, `PATCH /api/v1/users/:id/role`, `PATCH /api/v1/users/:id` (`lazy`) |
+| `/admin/users` | `AdminUsersPage` | Korumalı + admin; `GET /api/v1/users?include_deleted=1` (silinenleri göster seçiliyken), `PATCH /api/v1/users/:id/role`, `PATCH`/`DELETE /api/v1/users/:id`, `PATCH /api/v1/users/:id/restore` (`lazy`) |
 | `*` | `NotFoundPage` | — |
 
 `/register` planlanan kayıt sayfasıdır; mevcut uygulamada `RegisterPage.jsx` ve bu rota henüz yoktur.
@@ -134,11 +134,16 @@ Yönetim sayfaları modül seviyesindeki `lazy` tanımlarıyla ayrı JavaScript 
 
 Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgili düğme kapanır. Başarıda API'nin döndürdüğü kayıt, `startTransition` içinde `useApi.updateData` ile aynı geçişte listeye yazılır; ek liste isteği gerekmez. Hatada asıl liste değişmez, geçiş bitince React geçici değeri atar ve rozet eski durumuna döner; hata mesajı ayrıca gösterilir.
 
+Kullanıcı silme, rol ve aktiflik değişikliğiyle aynı onay penceresini kullanır. Silme isteği gövdesiz `DELETE` olarak gönderilir; başarıda liste yeniden yüklenir. “Silinenleri göster”, `include_deleted=1` ile silinmiş kullanıcıları da listeye ekler ve sayfayı 1'e döndürür; aktiflik filtresi ayrıca uygulanır. Silinmiş kullanıcıda “Silindi” rozeti ve yalnız “Geri getir” düğmesi görünür. Geri getirme, `PATCH /api/v1/users/:id/restore` ile hesabı yeniden aktifleştirir. İşlem hataları arayüzde gösterilir.
+
+API koduna göre kullanıcı silme fiziksel silme değildir: `deleted_at` doldurulur ve `is_active=0` yapılır. Diğer penceredeki kullanıcı, bir sonraki yetkili istekte `401 AUTHENTICATED_USER_UNAVAILABLE` alır; arayüz bu yanıtla oturumu kapatır. Mevcut yazı ve yorum kayıtları korunur; görünür yorumlar, yazarın hesabı silindiği için gizlenmez. E-posta kayıtta kalır; aynı adresle yeni kayıt `409 EMAIL_ALREADY_EXISTS` alır. Bu sonuçlar API kaynak kodundan doğrulandı; canlı hesap silinerek denenmedi.
+
 ## Bilinen Sınırlamalar
 
 - Yönetim tablolarının arama, sıralama ve filtreleri adreste değil, component state'inde tutulur; sayfa yenilenince sıfırlanır.
+- Kullanıcı listesinin son sayfasındaki son kayıt silinirse sayfa otomatik geri alınmaz; arama veya filtre değiştirilerek 1. sayfaya dönülür.
 - Kategori yönetimi ilk 50 kategoriyi gösterir; sayfalama yok.
-- Kullanıcı silme ve geri getirme arayüzü yok; yorum moderasyonu yalnız yazar panelinde.
+- Yorum moderasyonu yalnız yazar panelinde.
 - Arayüzdeki rol, başka bir oturumda rol değiştikten sonra sayfa yenilenene kadar eski kalır.
 - Token `sessionStorage`'da; XSS olursa JavaScript tarafından okunabilir (`httpOnly` cookie yok).
 - Refresh token yok; token'ın 15 dakikalık süresi dolunca yeniden giriş gerekir.
@@ -168,7 +173,7 @@ Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgil
 ## API'de Bulduğum Sorunlar
 
 - Silinmiş bir kategorideki yazı geri getirilebiliyor; restore işlemi kategoriyi kontrol etmiyor. Kategori silinmişse `409` dönmeli.
-- Admin kendi hesabını pasifleştirebilir veya silebilir. Kendi rolünü değiştirmede `409 CANNOT_CHANGE_OWN_ROLE` koruması var; aktiflik ve silme işlemlerinde yok. Arayüz kendi satırındaki rol ve aktiflik düğmelerini kapatır. Tek admin kendi hesabını pasifleştirir veya silerse sonraki yetkili istekte oturumu kapanır ve uygulama üzerinden hesabını geri açacak başka admin kalmaz; bu işlemler denenmemelidir.
+- Admin kendi hesabını pasifleştirebilir veya silebilir. Kendi rolünü değiştirmede `409 CANNOT_CHANGE_OWN_ROLE` koruması var; aktiflik ve silme işlemlerinde yok. Arayüz kendi satırındaki rol, aktiflik ve “Sil” düğmelerini kapatır; bu yalnız arayüz korumasıdır, doğrudan API isteğini engellemez. API'nin pasifleştirme ve silmede de oturumdaki kullanıcı kimliğini kontrol etmesi gerekir. Tek admin kendi hesabını pasifleştirir veya silerse sonraki yetkili istekte oturumu kapanır ve uygulama üzerinden hesabını geri açacak başka admin kalmaz; bu işlemler denenmemelidir.
 - Kullanıcı listesi bilinmeyen sorgu parametrelerini sessizce yok sayıyor; rol filtresi yok. Kategori listesi ise bilinmeyen parametreye `422` veriyor.
 - Yazı listesinde `include_deleted=1`, silinen yazıları mevcut listeye ekler; yalnız silinenleri getiren bir parametre yok. Yönetim tablosunda silinen yazılar diğer yazılarla birlikte `updated_at` sırasıyla gösterilir.
 - `LIKE` aramasında `%` ve `_` karakterleri kaçırılmıyor; `%` araması her şeyi getiriyor.
@@ -180,7 +185,7 @@ Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgil
 ## Sonraki Adımlar
 
 - API: restore sırasında kategori kontrolü, admin'in kendini kilitlemesine karşı koruma, kullanıcı listesinde katı sorgu doğrulaması ve rol filtresi.
-- Kullanıcı silme ve geri getirme, admin yorum moderasyonu.
+- Admin yorum moderasyonu.
 - Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi.
 - Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
 - API: yukarıdaki diğer sorunları düzeltmek; refresh token ve `httpOnly` cookie eklemek.
