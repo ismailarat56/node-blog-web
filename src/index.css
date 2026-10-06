@@ -753,3 +753,32 @@ a.button {
   gap: 12px;
   margin-top: 20px;
 }
+
+/* 05.10: kullanıcı yönetimi ve arayüz iyileştirmeleri */
+
+.app-banner {
+  margin: 0;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 0.95rem;
+  background: #fff4dc;
+  color: #7a5300;
+  border-bottom: 1px solid #f0dfb5;
+}
+
+.app-banner--error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-bottom-color: #f2d4d4;
+}
+
+.app-banner button {
+  margin-left: 8px;
+}
+
+.error-boundary {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
