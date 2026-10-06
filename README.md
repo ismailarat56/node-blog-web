@@ -38,6 +38,24 @@ Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine ta
 
 Önizlemeden önce `npm run build` çalıştırılmalıdır. `dist/` yeniden üretilebilir bir çıktıdır ve Git'e eklenmez.
 
+## Sürüm Doğrulaması: blog-web-v5
+
+04.10 yönetim paneli çalışmasının sürüm kapanışı 06.10.2026'da doğrulandı. `lazy` tanımları ve `AdminLayout` içindeki `Suspense`, mevcut `b58eb8c` commit'inde zaten bulunuyordu. `perf: lazy load admin pages` commit'i bu uygulamanın paket ve tarayıcı doğrulama kaydını ekler; `docs: update readme and daily summary` commit'i README ve gün sonu özetini tamamlar.
+
+Eksik `blog-web-v4` etiketi, yönetim panelinden önceki 03.10 son commit'i olan `09867a2` üzerine eklendi. `blog-web-v5`, 04.10 işlerinin doğrulanmış kapanışını işaretler.
+
+`blog-web-v5` sürümündeyken kontrol et:
+
+```bash
+git status
+git describe --tags
+git log --oneline blog-web-v4..blog-web-v5
+npm run build
+npm run lint
+```
+
+Çalışma ağacı temiz, `git describe --tags` çıktısı `blog-web-v5` olmalı; commit aralığında yukarıdaki `perf:` ve `docs:` başlıkları görünmeli. Paket boyutları ve tarayıcı sonuçları [doğrulama kaydında](notes/admin-lazy-verification-06-10-2026.json), yöntem ve bulgular [04.10 gün sonu özetinde](notes/daily-summary-04-10-2026.md#06102026-tamamlama-doğrulaması) bulunur.
+
 ## Klasör Yapısı
 
 - `src/api/`: API isteklerini ve hata dönüşümünü yönetir.
@@ -111,6 +129,8 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 `RequireAuth` oturumu kontrol eder; içindeki `RequireAdmin`, admin olmayan kullanıcıya erişememe nedenini gösteren bir arayüz kolaylığıdır. Asıl yetkiyi API denetler. Arayüzdeki rol, girişte veya `/auth/me` ile alınan kullanıcı bilgisinin bir kopyasıdır; başka bir oturumda rol değişirse sayfa yenilenene kadar bayat kalabilir. Menüde bağlantıyı gizlemek API erişimini güvenceye almaz.
 
 Yönetim sayfaları modül seviyesindeki `lazy` tanımlarıyla ayrı JavaScript dosyalarına bölünür. Admin olmayan okuyucu korumalı sayfayı render edemediği için normal gezinmede bu sayfa dosyalarını indirmez. `AdminLayout` içindeki `Suspense`, içerik yüklenirken mesaj gösterir; sekmeler görünür kalır. Kod bölme bir yetkilendirme mekanizması değildir.
+
+06.10 doğrulamasında üretim build'i tarayıcıda örnek API yanıtlarıyla çalıştırıldı: oturumsuz kullanıcı ve normal kullanıcı admin sayfa dosyalarını indirmedi; admin için de ana sayfada bu dosyalar istenmedi. Üç yönetim adresi ayrı ayrı açıldığında ilgili dosya yüklendi. Dosya yanıtı bekletilirken `Suspense` mesajı ve yönetim sekmeleri görünür kaldı. Aynı kodun yalnız admin import'ları statik hâle getirilen geçici karşılaştırmasında, ilk JavaScript yükü 321.192 bayttan 304.564 bayta; her iki pakete aynı `node:zlib` gzip yöntemi uygulandığında 96.358 bayttan 92.889 bayta düştü. Bunlar dosya boyutlarıdır; HTTP sunucusunda gzip ayarı yapıldığı anlamına gelmez.
 
 Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgili düğme kapanır. Başarıda API'nin döndürdüğü kayıt, `startTransition` içinde `useApi.updateData` ile aynı geçişte listeye yazılır; ek liste isteği gerekmez. Hatada asıl liste değişmez, geçiş bitince React geçici değeri atar ve rozet eski durumuna döner; hata mesajı ayrıca gösterilir.
 

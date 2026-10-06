@@ -86,3 +86,39 @@ Kişisel değerlendirme için doldurulacak; bu oturumda kullanıcıya ait iki ya
 ## En Çok Zorlandığım Konu
 
 Kişisel değerlendirme için doldurulacak: Hangi konuda zorlandım, hangi kod veya deney açıklığa kavuşturdu ve neyi tekrar etmeliyim? Olası tekrar başlıkları: `key` ile state'in sıfırlanması, `await` sonrası geçiş güncellemesi ve arayüzdeki rol ile API yetkisinin ayrılması.
+
+## 06.10.2026 Tamamlama Doğrulaması
+
+04.10 planının 3. görevi (`lazy`, `Suspense`, gzip ölçümü) ve 11. görevi (build, README, sürüm etiketi) için sonradan yapılan kontroldür. Üstteki 04.10 deney kayıtlarını değiştirmez.
+
+### Görev 3: lazy, Suspense ve gzip
+
+Üç yönetim sayfasının modül seviyesindeki `lazy` tanımları ve `AdminLayout` içindeki `Suspense`, `b58eb8c` commit'inde zaten vardı. Kodun tekrar yazılması gerekmedi. `perf: lazy load admin pages` commit'i bu davranışın [ölçüm ve tarayıcı kaydını](admin-lazy-verification-06-10-2026.json) ekler.
+
+`npm run build` ve `npm run lint` başarılı oldu. Üretim build'inde `AdminCategoriesPage`, `AdminPostsPage` ve `AdminUsersPage` ayrı dinamik JavaScript dosyaları olarak çıktı; ilk yüklenen dosyaların statik bağımlılıklarında bu sayfaların modülleri bulunmadı.
+
+Kod bölmenin etkisini ayırmak için aynı kaynak ve kurulu bağımlılıklarla iki build karşılaştırıldı. İkinci build'de yalnız üç admin `lazy` tanımı, bellekte statik import'a çevrildi; kaynak dosyaları değiştirilmedi. Her iki çıktının gzip boyutu Node.js `gzipSync` varsayılanlarıyla hesaplandı. Bu ölçüm, üstteki Vite gzip raporundan ayrı bir karşılaştırmadır.
+
+| İlk JavaScript yükü | Sıkıştırılmamış | gzip (`node:zlib`) |
+| --- | ---: | ---: |
+| Statik admin import'larıyla karşılaştırma | 321.192 bayt | 96.358 bayt |
+| Mevcut `lazy` tanımlarıyla | 304.564 bayt | 92.889 bayt |
+| İlk yükten çıkarılan miktar | 16.628 bayt | 3.469 bayt |
+
+Bu fark yalnız ilk yük içindir; admin sayfasına girildiğinde ilgili sayfa ve ortak dosyaları ayrıca indirilir. gzip ölçümü, sunucunun HTTP yanıtlarını sıkıştırdığını doğrulamaz.
+
+Üretim build'i Chromium'da örnek GET API yanıtlarıyla kontrol edildi:
+
+- Oturumsuz kullanıcı ve normal kullanıcı ana sayfada admin dosyalarını indirmedi. `/admin` erişiminde de bu dosyalar ve yönetim API listeleri istenmedi; oturumsuz kullanıcı login'e gitti, normal kullanıcı yetki mesajını gördü.
+- Admin ana sayfadayken admin sayfa dosyaları istenmedi.
+- `/admin`, `/admin/posts` ve `/admin/users` ayrı ayrı açıldığında yalnız ilgili admin sayfa dosyası istendi.
+- Her dosyanın yanıtı bekletilerek `Yönetim sayfası yükleniyor...` mesajı ve yönetim sekmelerinin görünür kaldığı doğrulandı; yanıt serbest bırakılınca sayfa açıldı.
+- Tarayıcıda JavaScript hatası görülmedi. Canlı API verisi değiştirilmedi.
+
+### Görev 11: build, README ve sürüm kapanışı
+
+README'ye sürüm kontrol komutları, ölçüm sonucu ve bu notun bağlantısı eklendi. Kapanış commit'i `docs: update readme and daily summary` başlığını kullanır.
+
+Başlangıçta çalışma ağacı temizdi, ancak yalnız `blog-web-v1` etiketi vardı. Yönetim panelinden önceki 03.10 son commit'i `09867a2`, eksik `blog-web-v4` etiketi için başlangıç noktası olarak kullanıldı. `blog-web-v5`, doğrulama kaydı ve dokümantasyon commit'lerinden sonraki sürümü işaretler; önceki commit geçmişi korunur.
+
+Sürüm kapanışında çalışma ağacı temiz olmalı, `git describe --tags` tam olarak `blog-web-v5` dönmeli ve `git log --oneline blog-web-v4..blog-web-v5` çıktısı `perf: lazy load admin pages` ile `docs: update readme and daily summary` başlıklarını içermelidir.
