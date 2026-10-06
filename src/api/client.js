@@ -1,3 +1,5 @@
+import { reportApiTrouble } from "./health.js";
+
 export class ApiError extends Error {
   constructor(status, code, message, details, retryAfter) {
     super(message);
@@ -51,11 +53,17 @@ export async function apiRequest(
       throw error;
     }
 
+    reportApiTrouble();
+
     throw new ApiError(
       0,
       "NETWORK_ERROR",
       "Sunucuya ulaşılamadı."
     );
+  }
+
+  if (response.status === 502 || response.status === 504) {
+    reportApiTrouble();
   }
 
   if (response.status === 204) {

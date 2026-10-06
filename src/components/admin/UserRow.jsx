@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { formatDate } from "../../utils/format-date.js";
 
 const SELF_HINT = "Kendi hesabında bu işlemi yapamazsın.";
@@ -27,7 +28,11 @@ export default function UserRow({
   return (
     <tr data-deleted={isDeleted}>
       <td>
-        {user.name}
+        {isDeleted ? (
+          user.name
+        ) : (
+          <Link to={`/admin/users/${user.id}`}>{user.name}</Link>
+        )}
         {isSelf && <span className="form__hint"> (sen)</span>}
       </td>
       <td>{user.email}</td>

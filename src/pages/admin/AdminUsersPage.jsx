@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import useAuth from "../../auth/useAuth.js";
 import SortableHeader from "../../components/admin/SortableHeader.jsx";
 import UserRow from "../../components/admin/UserRow.jsx";
@@ -7,6 +8,10 @@ import Pagination from "../../components/Pagination.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
 import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
+import {
+  readUserFilters,
+  toUserFilterParams,
+} from "../../utils/user-filters.js";
 
 const PAGE_SIZE = 20;
 const SEARCH_DELAY = 400;
@@ -108,16 +113,16 @@ function buildChangeRequest({ user, field, value }) {
 
 export default function AdminUsersPage() {
   const auth = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [active, setActive] = useState(null);
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [sort, setSort] = useState({ by: "created_at", order: "desc" });
-  const [page, setPage] = useState(1);
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [pendingChange, setPendingChange] = useState(null);
   const [changeError, setChangeError] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const filters = readUserFilters(searchParams);
+  const { active, showDeleted, sort, page } = filters;
 
   const debouncedSearch = useDebouncedValue(
     search.trim(),
@@ -135,33 +140,37 @@ export default function AdminUsersPage() {
     auth.authRequest
   );
 
+  function updateFilters(changes) {
+    setSearchParams(toUserFilterParams({ ...filters, ...changes }));
+  }
+
   function handleSearchChange(event) {
     setSearch(event.target.value);
-    setPage(1);
+
+    if (page !== 1) {
+      updateFilters({ page: 1 });
+    }
   }
 
   function handleActiveChange(nextActive) {
-    setActive(nextActive);
-    setPage(1);
+    updateFilters({ active: nextActive, page: 1 });
   }
 
   function handleShowDeletedChange(event) {
-    setShowDeleted(event.target.checked);
-    setPage(1);
+    updateFilters({ showDeleted: event.target.checked, page: 1 });
   }
 
   function handleSort(field) {
-    setPage(1);
-    setSort((current) => {
-      if (current.by !== field) {
-        return { by: field, order: "asc" };
-      }
+    const nextSort =
+      sort.by === field
+        ? { by: field, order: sort.order === "asc" ? "desc" : "asc" }
+        : { by: field, order: "asc" };
 
-      return {
-        by: field,
-        order: current.order === "asc" ? "desc" : "asc",
-      };
-    });
+    updateFilters({ sort: nextSort, page: 1 });
+  }
+
+  function handlePageChange(nextPage) {
+    updateFilters({ page: nextPage });
   }
 
   function askChange(change) {
@@ -222,7 +231,12 @@ export default function AdminUsersPage() {
   return (
     <section>
       <title>Kullanıcılar · Yönetim · Node Blog</title>
-      <h1 className="page-title">Kullanıcılar</h1>
+      <div className="dashboard__header">
+        <h1 className="page-title">Kullanıcılar</h1>
+        <Link to="/admin/users/new" className="button">
+          Yeni kullanıcı
+        </Link>
+      </div>
 
       <div className="toolbar">
         <input
@@ -324,7 +338,7 @@ export default function AdminUsersPage() {
           <Pagination
             page={page}
             totalPages={users.meta.total_pages}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
           />
         </>
       )}

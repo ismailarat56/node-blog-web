@@ -24,7 +24,7 @@ Node Blog API'sindeki yazıları, kategorileri ve yorumları gösteren React uyg
 
 3. Tarayıcıda http://localhost:5173 adresini aç.
 
-Vite proxy, `/api` ve `/uploads` isteklerini `http://127.0.0.1:8080` adresine taşır. Tarayıcı istekleri uygulamayla aynı origin'e gönderir; Vite bunları API'ye iletir.
+Vite proxy, `/api`, `/uploads` ve `/health` isteklerini `http://127.0.0.1:8080` adresine taşır. Tarayıcı istekleri uygulamayla aynı origin'e gönderir; Vite bunları API'ye iletir. Bu geliştirme ayarıdır; üretimde bu yolların web sunucusunda da yönlendirilmesi gerekir.
 
 ## Komutlar
 
@@ -59,20 +59,28 @@ npm run lint
 ## Klasör Yapısı
 
 - `src/api/`: API isteklerini ve hata dönüşümünü yönetir.
+- `src/api/health.js`: `/health` kontrolünü yapar; API istemcisindeki bağlantı sorunlarını `api:trouble` olayıyla duyurur.
 - `src/auth/`: Oturum state'ini, Context'i ve token saklamayı yönetir.
+- `src/auth/token-expiry.js`: JWT payload'ındaki `exp` değerini milisaniyeye çevirir; token imzasını doğrulamaz.
 - `src/components/`: Sayfalarda kullanılan arayüz bileşenlerini içerir. `AccountLayout.jsx` hesap menüsünü ve alt sayfaları birleştirir; `CodeField.jsx` doğrulama kodundan rakam dışı karakterleri temizler.
+- `src/components/ApiStatusBanner.jsx`: API'ye ulaşılamadığında uyarı ve elle tekrar deneme düğmesi gösterir.
+- `src/components/ErrorBoundary.jsx`: Ana içerikteki render hatasında yeniden deneme ve ana sayfaya dönüş ekranı gösterir; yol değişince hatayı temizler.
+- `src/components/SessionExpiryNotice.jsx`: Oturumun son 120 saniyesinde geri sayım ve kaydetme hatırlatması gösterir.
 - `src/components/RequireAdmin.jsx`: Oturum kontrolünden sonra admin rolünü kontrol eden arayüz kapısı.
 - `src/components/AdminLayout.jsx`: Yönetim sekmeleri, `Outlet` ve sayfa yüklenirken gösterilen `Suspense` sınırı.
 - `src/components/ConfirmDialog.jsx`: `showModal()` ile açılan, ortak silme ve değişiklik onay penceresi.
-- `src/components/admin/`: Yönetim tablolarına özel `SortableHeader`, `CategoryRow`, `CategoryForm`, `AdminPostRow` ve `UserRow` bileşenleri.
+- `src/components/admin/`: Yönetim tablolarına özel `SortableHeader`, `CategoryRow`, `CategoryForm`, `AdminPostRow` ve `UserRow`; kullanıcı oluşturma/düzenleme için `UserForm`, kullanıcıya ait yazılar için `UserPostList` bileşenleri.
 - `src/hooks/`: Veri, yüklenme ve hata durumunu yöneten `useApi` gibi ortak hook'ları içerir. `useCountdown.js`, her çağrı için bağımsız state ve zamanlayıcıyla geri sayım sağlar.
 - `src/hooks/useDebouncedValue.js`: Arama değeri değişmeyi bıraktığında gecikmeli değeri üretir; bekleyen zamanlayıcıyı cleanup ile temizler.
+- `src/hooks/useApiHealth.js`: İlk açılışta, bağlantı sorunu bildirildiğinde ve sekmeye dönüldüğünde sağlığı kontrol eder; API erişilemiyorsa 10 saniyelik tekrar deneme zamanlar.
 - `src/pages/`: Route'lara karşılık gelen sayfa bileşenlerini içerir.
-- `src/pages/admin/`: `lazy` ile yüklenen kategori, yazı ve kullanıcı yönetimi sayfaları.
+- `src/pages/admin/`: `lazy` ile yüklenen kategori, yazı ve kullanıcı listeleri; kullanıcı detayı/düzenlemesi için `AdminUserPage`, hesap oluşturmak için `AdminNewUserPage`.
 - `src/utils/`: Tarih biçimlendirme gibi yardımcı fonksiyonları içerir. `code-errors.js` kod işlemlerinin hata mesajlarını, `format-countdown.js` geri sayımın dakika:saniye biçimini ortaklaştırır.
 - `src/utils/slugify.js`: Türkçe karakter dönüşümü ve uzunluk sınırıyla addan slug önerisi üretir.
 - `src/utils/category-form.js`: Boş kategori formunu ve API kaydından form değerlerine dönüşümü tanımlar.
 - `src/utils/category-status.js`: Silindi, Aktif ve Pasif etiketlerini belirler; silinme durumuna öncelik verir.
+- `src/utils/user-form.js`: Kullanıcı formunun başlangıç değerlerini ve API hata kodlarının alan mesajlarına dönüşümünü tanımlar.
+- `src/utils/user-filters.js`: Kullanıcı listesinin aktiflik, silinenleri gösterme, sıralama ve sayfa seçimlerini URL parametrelerinden okur ve URL'ye yazılacak biçime çevirir.
 
 ## Sayfalar
 
@@ -94,9 +102,88 @@ npm run lint
 | `/admin` | `AdminCategoriesPage` | Korumalı + admin; `GET`/`POST /api/v1/categories`, `PATCH`/`DELETE /api/v1/categories/:id`, `PATCH /api/v1/categories/:id/restore` (`lazy`) |
 | `/admin/posts` | `AdminPostsPage` | Korumalı + admin; `GET /api/v1/posts?include_deleted=1` (silinenleri göster seçiliyken), `DELETE /api/v1/posts/:id`, `PATCH /api/v1/posts/:id/restore` (`lazy`) |
 | `/admin/users` | `AdminUsersPage` | Korumalı + admin; `GET /api/v1/users?include_deleted=1` (silinenleri göster seçiliyken), `PATCH /api/v1/users/:id/role`, `PATCH`/`DELETE /api/v1/users/:id`, `PATCH /api/v1/users/:id/restore` (`lazy`) |
+| `/admin/users/new` | `AdminNewUserPage` | Korumalı + admin; `POST /api/v1/users` (`lazy`) |
+| `/admin/users/:id` | `AdminUserPage` | Korumalı + admin; `GET /api/v1/users/:id`, `PATCH /api/v1/users/:id`, `GET /api/v1/posts?user_id=...` (`lazy`) |
 | `*` | `NotFoundPage` | — |
 
 `/register` planlanan kayıt sayfasıdır; mevcut uygulamada `RegisterPage.jsx` ve bu rota henüz yoktur.
+
+## API Kapsamı
+
+06.10.2026 kaynak kontrolüne göre uygulama, **48 uygulama ucundan 43'üne ve ayrıca `GET /health` ucuna bağlı**. İstenen **44/48 + `/health` hedefi**, kayıt ekranı tamamlandığında sağlanacak: mevcut `App.jsx` içinde `/register` route'u ve kaynakta `POST /api/v1/auth/register` çağrısı yok. Sayfalar tablosundaki planlanan kayıt satırı bağlantı sayısına katılmadı.
+
+Her HTTP yöntemi + yol çifti bir uç sayılır; query filtreleri yeni bir uç değildir. `/health`, yüklenen dosyalar ve yalnız geliştirmeye ait `/api/v1/dev/mail-outbox/latest` 48 uygulama ucunun dışında tutulur. “Bağlı”, frontend'de çağrı akışı bulunduğu anlamına gelir; bütün uçların canlı API ile yeniden test edildiği anlamına gelmez. Aşağıdaki yollar `/api/v1` önekiyle kullanılır.
+
+| Grup | API'deki uç | Arayüze bağlı |
+| --- | ---: | ---: |
+| Public | 4 | 4 |
+| Oturum ve hesap | 12 | 11 |
+| Kullanıcılar | 8 | 7 |
+| Kategoriler | 7 | 5 |
+| Yazılar ve kapak | 11 | 10 |
+| Yorumlar | 6 | 6 |
+| **Toplam** | **48** | **43** |
+| Sağlık (ayrı) | 1 | 1 |
+
+| Yöntem | Yol | Durum / kullanan ekran veya bileşen |
+| --- | --- | --- |
+| GET | `/public/posts` | Bağlı — HomePage |
+| GET | `/public/posts/:slug` | Bağlı — PostDetailPage |
+| GET | `/public/posts/:slug/comments` | Bağlı — CommentList |
+| GET | `/public/categories` | Bağlı — CategoryFilter, PostForm |
+| POST | `/auth/login` | Bağlı — LoginPage / AuthProvider |
+| POST | `/auth/register` | Eksik — RegisterPage ve route henüz yok |
+| GET | `/auth/me` | Bağlı — AuthProvider |
+| POST | `/auth/logout` | Bağlı — AuthProvider / Header |
+| POST | `/auth/email/verify` | Bağlı — VerifyEmailPage |
+| POST | `/auth/email/verify/resend` | Bağlı — VerifyEmailPage |
+| POST | `/auth/password/forgot` | Bağlı — ForgotPasswordPage, ResetPasswordPage |
+| POST | `/auth/password/reset` | Bağlı — ResetPasswordPage |
+| POST | `/auth/password/change-code` | Bağlı — ChangePasswordPage |
+| PATCH | `/auth/password` | Bağlı — ChangePasswordPage |
+| POST | `/auth/email/change` | Bağlı — ChangeEmailPage |
+| POST | `/auth/email/change/confirm` | Bağlı — ChangeEmailPage |
+| GET | `/users` | Bağlı — AdminUsersPage |
+| GET | `/users/:id` | Bağlı — AdminUserPage |
+| POST | `/users` | Bağlı — AdminNewUserPage |
+| PUT | `/users/:id` | Bilinçli olarak kullanılmıyor — PATCH tercih ediliyor |
+| PATCH | `/users/:id` | Bağlı — AdminUserPage, AdminUsersPage |
+| DELETE | `/users/:id` | Bağlı — AdminUsersPage |
+| PATCH | `/users/:id/restore` | Bağlı — AdminUsersPage |
+| PATCH | `/users/:id/role` | Bağlı — AdminUsersPage |
+| GET | `/categories` | Bağlı — AdminCategoriesPage |
+| GET | `/categories/:id` | Bilinçli olarak kullanılmıyor — liste aynı alanları veriyor |
+| POST | `/categories` | Bağlı — AdminCategoriesPage |
+| PUT | `/categories/:id` | Bilinçli olarak kullanılmıyor — PATCH tercih ediliyor |
+| PATCH | `/categories/:id` | Bağlı — AdminCategoriesPage / CategoryRow |
+| DELETE | `/categories/:id` | Bağlı — AdminCategoriesPage |
+| PATCH | `/categories/:id/restore` | Bağlı — AdminCategoriesPage |
+| GET | `/posts` | Bağlı — DashboardPage, AdminPostsPage, UserPostList |
+| GET | `/posts/:id` | Bağlı — EditPostPage |
+| POST | `/posts` | Bağlı — NewPostPage |
+| PUT | `/posts/:id` | Bilinçli olarak kullanılmıyor — PATCH tercih ediliyor |
+| PATCH | `/posts/:id` | Bağlı — EditPostPage |
+| DELETE | `/posts/:id` | Bağlı — DashboardPage, AdminPostsPage |
+| PATCH | `/posts/:id/restore` | Bağlı — DashboardPage, AdminPostsPage |
+| PATCH | `/posts/:id/publish` | Bağlı — PostStatusActions |
+| PATCH | `/posts/:id/unpublish` | Bağlı — PostStatusActions |
+| PUT | `/posts/:id/cover` | Bağlı — CoverEditor; bu PUT, kullanılmayan üç kayıt değiştirme ucundan farklıdır |
+| DELETE | `/posts/:id/cover` | Bağlı — CoverEditor |
+| GET | `/posts/:id/comments` | Bağlı — CommentModeration |
+| POST | `/posts/:id/comments` | Bağlı — CommentForm |
+| PATCH | `/comments/:id` | Bağlı — CommentForm |
+| DELETE | `/comments/:id` | Bağlı — CommentItem, CommentModeration |
+| PATCH | `/comments/:id/hide` | Bağlı — CommentModeration |
+| PATCH | `/comments/:id/unhide` | Bağlı — CommentModeration |
+
+**Bilinçli olarak bağlanmayan dört uç:**
+
+- `PUT /users/:id`: Bütün değiştirme alanlarını tekrar göndermek yerine PATCH yalnız değişen kullanıcı alanlarını gönderiyor.
+- `PUT /posts/:id`: Formun eski kopyasındaki bütün alanları göndermek, başka birinin bu sırada değiştirdiği alanları ezebilir; PATCH yalnız değişen alanları gönderiyor.
+- `PUT /categories/:id`: Aynı nedenle bütün kayıt yerine değişen kategori alanları PATCH ile gönderiliyor. PUT, sözleşmesindeki tam değiştirme alanlarını ister.
+- `GET /categories/:id`: Yönetim listesi detay formunun ihtiyaç duyduğu aynı alanları zaten veriyor; ek GET gerekmiyor. Bu uç public değil, giriş istiyor.
+
+PATCH, değiştirilmeyen alanları göndermeyerek gereksiz üzerine yazmayı azaltır; aynı alanı iki kişinin değiştirmesi sorununu tek başına çözmez. Bunun için API'de sürüm/ETag kontrolü gerekir. Bu dört tasarım tercihine **ek olarak** `POST /auth/register` henüz bağlanmamış bir iştir; bu yüzden mevcut sayı 44 değil 43'tür.
 
 ## Oturum
 
@@ -111,6 +198,8 @@ Oturumlu istekler `authRequest` üzerinden gönderilir. Bir istek `401` döndür
 Parola değişince veya sıfırlanınca API bütün oturumları geçersiz kılar: token'ın `iat` değeri `password_changed_at` değerinden eskiyse (`iat < password_changed_at`) token bayat sayılır. Parola değiştirme isteğinin token'ı ayrıca iptal edilir. Diğer cihazlar bunu sonraki yetkili isteklerinde öğrenir. Arayüz, başarılı parola değişikliğinde `closeSession` ile kendi token ve kullanıcı state'ini temizleyip e-posta ve başarı mesajıyla `/login` sayfasına gider; merkezi 401 yönetimi de aynı fonksiyonu kullanır. `closeSession`, oturum temizliği ve `replace: true` ile yönlendirmeyi `startTransition` içinde toplar. Böylece oturum kapanmışken korumalı adresin hâlâ ekranda olduğu ara render'da `RequireAuth`'un kendi yönlendirmesiyle mesajı ve e-postayı değiştirmesi önlenir. Tokensız parola sıfırlama sayfası ise başarı mesajı ve e-postayla doğrudan giriş sayfasına yönlenir.
 
 E-posta değişikliği onaylandığında API'nin döndürdüğü güncel kullanıcı `updateUser(data)` ile Context'e yazılır. Hesap bilgileri ve tamamlanma ekranı adresi `auth.user` üzerinden okuduğu için yeni adresi hemen kullanır. Sunucudaki değişiklik Context'teki eski kopyayı kendiliğinden yenilemez; ayrıca `/auth/me` isteği göndermeye gerek yoktur.
+
+`readTokenExpiry`, JWT'deki saniye cinsinden `exp` değerini milisaniyeye çevirir. `AuthProvider`, bu saate bir zamanlayıcı kurar ve `visibilitychange` olayında da süreyi kontrol eder. `useEffectEvent` içindeki kapanış callback'i güncel konumu okuyarak `closeSession` çağırır. `SessionExpiryNotice`, son 120 saniyede kalan süreyi gösterir; uyarı otomatik kayıt veya oturum yenileme yapmaz.
 
 ## Yazar Paneli
 
@@ -138,15 +227,24 @@ Kullanıcı silme, rol ve aktiflik değişikliğiyle aynı onay penceresini kull
 
 API koduna göre kullanıcı silme fiziksel silme değildir: `deleted_at` doldurulur ve `is_active=0` yapılır. Diğer penceredeki kullanıcı, bir sonraki yetkili istekte `401 AUTHENTICATED_USER_UNAVAILABLE` alır; arayüz bu yanıtla oturumu kapatır. Mevcut yazı ve yorum kayıtları korunur; görünür yorumlar, yazarın hesabı silindiği için gizlenmez. E-posta kayıtta kalır; aynı adresle yeni kayıt `409 EMAIL_ALREADY_EXISTS` alır. Bu sonuçlar API kaynak kodundan doğrulandı; canlı hesap silinerek denenmedi.
 
+Yeni kullanıcı formu ad, e-posta ve parola gönderir; hesap oluşturulunca detay sayfasına geçilir. Detayda ad ve e-posta düzenlenir, yalnız değişen alanlar PATCH ile gönderilir. Yönetici kendi e-postasını buradan değiştiremez; doğrulamalı Hesabım → E-posta akışını kullanır. Kullanıcıya ait yazılar silinenler dahil en fazla 10 kayıt olarak gösterilir.
+
+Kullanıcı listesinin `active`, `deleted`, `sort`, `order` ve `page` seçimleri URL'dedir; arama metni yalnız component state'inde tutulur ve 400 ms gecikmeyle API sorgusuna eklenir. Detay sayfasındaki sabit listeye dönüş bağlantısı filtreleri taşımaz; tarayıcının geri tuşu önceki URL'ye dönebilir.
+
+`Layout`, API durumu ve oturum süresi bantlarını ortak yerleşimde gösterir. API istemcisindeki ağ hatası veya 502/504 yanıtı yeni bir `/health` kontrolü başlatır. Sağlık kontrolü başarısızsa bant görünür; API erişilemiyorken otomatik tekrar deneme ve “Şimdi dene” seçeneği vardır. `ErrorBoundary` yalnız ana içeriği sarar; Header, Footer ve bantlar bu sınırın dışındadır.
+
 ## Bilinen Sınırlamalar
 
-- Yönetim tablolarının arama, sıralama ve filtreleri adreste değil, component state'inde tutulur; sayfa yenilenince sıfırlanır.
+- Kullanıcılar sayfasında arama metni adreste değil; Kategoriler ve Yazılar yönetim sayfalarının filtreleri hâlâ component state'inde.
 - Kullanıcı listesinin son sayfasındaki son kayıt silinirse sayfa otomatik geri alınmaz; arama veya filtre değiştirilerek 1. sayfaya dönülür.
 - Kategori yönetimi ilk 50 kategoriyi gösterir; sayfalama yok.
-- Yorum moderasyonu yalnız yazar panelinde.
+- Bütün yorumları tek yerde gösteren bir yönetim sayfası yok; moderasyon yazının düzenleme sayfasında. API'de de bütün yorumları tek listede veren bir uç yok.
 - Arayüzdeki rol, başka bir oturumda rol değiştikten sonra sayfa yenilenene kadar eski kalır.
 - Token `sessionStorage`'da; XSS olursa JavaScript tarafından okunabilir (`httpOnly` cookie yok).
-- Refresh token yok; token'ın 15 dakikalık süresi dolunca yeniden giriş gerekir.
+- Oturum uzatılamıyor; API'de refresh token yok, 15 dakikada bir yeniden giriş gerekiyor.
+- Oturum süresi dolunca herkese açık sayfadaki oturumlu okuyucu da giriş sayfasına gönderiliyor.
+- Hata sınırı olay yöneticilerindeki ve async koddaki hataları yakalamaz; bu işlemlerin hataları kendi akışlarında ele alınmalı.
+- API durumu bandı API geri gelince açık sayfanın verisini kendiliğinden yenilemez; başarısız asıl istek otomatik tekrarlanmaz.
 - Oturum yeni sekmeye taşınmaz; sekme kapanınca biter.
 - Oturum geri yüklenirken API'ye ulaşılamazsa oturum kapanır.
 - Oturum düşünce yazılmakta olan yorum kaybolur.
@@ -167,10 +265,19 @@ API koduna göre kullanıcı silme fiziksel silme değildir: `deleted_at` doldur
 - Post ve yorum istekleri art arda gidiyor (request waterfall).
 - Filtre veya sayfa değişince liste kaybolup yeniden yükleniyor; önceki veri gösterilmiyor.
 - API'de CORS ayarı yok; uygulama yalnız aynı origin'den (Vite proxy veya nginx) çalışır.
-- Bir component render sırasında hata verirse bütün sayfa boş kalır (error boundary yok).
 - Repoda kalıcı otomatik test paketi yok; bu oturumdaki geçici tarayıcı kontrolleri örnek API yanıtlarıyla çalıştırıldı.
 
 ## API'de Bulduğum Sorunlar
+
+Kullanıcı yönetimine ilişkin aşağıdaki davranışlar API kaynak kodundan kontrol edildi; bu belge güncellemesinde canlı hesap oluşturma, silme veya değiştirme deneyi yapılmadı.
+
+- Silinen kullanıcının yazıları ve görünür yorumları adıyla görünmeye devam ediyor; kullanıcıyı soft delete etmek içerikleri gizlemiyor veya yazar adını anonimleştirmiyor.
+- Geri getirilen kullanıcı her zaman aktif oluyor (`is_active=1`); silinmeden önce pasif olduğu bilgisi kayboluyor.
+- Silinmiş hesabın e-postası bir daha kullanılamıyor; aynı adresle kayıt `409 EMAIL_ALREADY_EXISTS` dönüyor. E-posta araması silinmiş kayıtları da kapsıyor.
+- Yöneticinin e-posta değişikliği doğrulama istemiyor; yeni adrese kod, eski adrese uyarı gitmiyor. Yönetim güncellemesi doğrulamalı hesap ayarları akışını kullanmıyor.
+- Yöneticinin açtığı hesaba doğrulama kodu gitmiyor; kullanıcı ilk girişte `403 EMAIL_NOT_VERIFIED` alıyor ve doğrulama ekranından kendisi yeni kod istemek zorunda.
+- Kullanıcı yönetimi liste/detay yanıtlarında e-posta doğrulama durumu yok (`email_verified_at` dönmüyor); yönetici bu yanıtlardan bir hesabın doğrulanmadığı için giriş yapamadığını göremiyor.
+- `POST /api/v1/users` isteğinde `role` alanı `422 UNSUPPORTED_FIELDS` dönüyor; oluşturma yalnız `name`, `email`, `password` kabul ediyor. Rol, hesap oluşturulduktan sonra ayrı `PATCH /api/v1/users/:id/role` isteğiyle değiştirilmeli.
 
 - Silinmiş bir kategorideki yazı geri getirilebiliyor; restore işlemi kategoriyi kontrol etmiyor. Kategori silinmişse `409` dönmeli.
 - Admin kendi hesabını pasifleştirebilir veya silebilir. Kendi rolünü değiştirmede `409 CANNOT_CHANGE_OWN_ROLE` koruması var; aktiflik ve silme işlemlerinde yok. Arayüz kendi satırındaki rol, aktiflik ve “Sil” düğmelerini kapatır; bu yalnız arayüz korumasıdır, doğrudan API isteğini engellemez. API'nin pasifleştirme ve silmede de oturumdaki kullanıcı kimliğini kontrol etmesi gerekir. Tek admin kendi hesabını pasifleştirir veya silerse sonraki yetkili istekte oturumu kapanır ve uygulama üzerinden hesabını geri açacak başka admin kalmaz; bu işlemler denenmemelidir.
@@ -184,11 +291,13 @@ API koduna göre kullanıcı silme fiziksel silme değildir: `deleted_at` doldur
 
 ## Sonraki Adımlar
 
-- API: restore sırasında kategori kontrolü, admin'in kendini kilitlemesine karşı koruma, kullanıcı listesinde katı sorgu doğrulaması ve rol filtresi.
-- Admin yorum moderasyonu.
-- Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi.
+- API: refresh token ve `httpOnly` cookie ile oturumu uzatmak; yöneticinin e-posta değişikliğine doğrulama eklemek.
+- API: sorun listesindeki maddeler; kendini kilitleme koruması, restore kontrolleri, katı kullanıcı sorgusu ve rol filtresi.
+- Kategoriler ve Yazılar yönetim sayfalarının filtrelerini adrese taşımak.
+- Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi. Mevcut kullanıcı silme kaydını bütün yönetici işlemlerini ve işlemi yapan kişiyi kapsayacak şekilde genişletmek.
+- Kayıt sayfasını ve `POST /api/v1/auth/register` bağlantısını tamamlamak; API kapsamını 44/48'e çıkarmak.
+- Bütün yorumlar için merkezi yönetim listesi: önce API listeleme ucu, ardından arayüz.
 - Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
-- API: yukarıdaki diğer sorunları düzeltmek; refresh token ve `httpOnly` cookie eklemek.
 - Veri çekmeyi TanStack Query'ye taşımak (önbellek, önceki veriyi tutma).
 - `dist/` klasörünü compose'taki nginx ile servis etmek.
 - TypeScript.

@@ -1,4 +1,9 @@
-import { startTransition, useEffect, useState } from "react";
+import {
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router";
 import { apiRequest } from "../api/client.js";
 import { AuthContext } from "./AuthContext.js";
@@ -7,6 +12,7 @@ import {
   readStoredToken,
   storeToken,
 } from "./token-storage.js";
+import { readTokenExpiry } from "./token-expiry.js";
 
 function getStatus(token, user) {
   if (!token) {
@@ -28,6 +34,7 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
   const status = getStatus(token, user);
+  const expiresAt = token ? readTokenExpiry(token) : null;
 
   useEffect(() => {
     if (!token || user) {
@@ -97,6 +104,33 @@ export default function AuthProvider({ children }) {
     });
   }
 
+  const handleExpiry = useEffectEvent(() => {
+    closeSession({
+      from: location,
+      notice: "Oturum süren doldu. Tekrar giriş yap.",
+    });
+  });
+
+  useEffect(() => {
+    if (expiresAt === null) {
+      return;
+    }
+
+    function checkExpiry() {
+      if (Date.now() >= expiresAt) {
+        handleExpiry();
+      }
+    }
+
+    const timerId = setTimeout(checkExpiry, expiresAt - Date.now());
+    document.addEventListener("visibilitychange", checkExpiry);
+
+    return () => {
+      clearTimeout(timerId);
+      document.removeEventListener("visibilitychange", checkExpiry);
+    };
+  }, [expiresAt]);
+
   async function authRequest(path, options = {}) {
     try {
       return await apiRequest(path, { ...options, token });
@@ -115,6 +149,7 @@ export default function AuthProvider({ children }) {
   const value = {
     status,
     user,
+    expiresAt,
     login,
     logout,
     closeSession,

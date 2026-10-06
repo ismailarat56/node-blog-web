@@ -29,6 +29,12 @@ const AdminPostsPage = lazy(
 const AdminUsersPage = lazy(
   () => import("./pages/admin/AdminUsersPage.jsx")
 );
+const AdminUserPage = lazy(
+  () => import("./pages/admin/AdminUserPage.jsx")
+);
+const AdminNewUserPage = lazy(
+  () => import("./pages/admin/AdminNewUserPage.jsx")
+);
 
 export default function App() {
   return (
@@ -80,6 +86,14 @@ export default function App() {
           <Route index element={<AdminCategoriesPage />} />
           <Route path="posts" element={<AdminPostsPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route
+            path="users/new"
+            element={<AdminNewUserPage />}
+          />
+          <Route
+            path="users/:id"
+            element={<AdminUserPage />}
+          />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
