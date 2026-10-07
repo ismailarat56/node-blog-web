@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   startTransition,
   useEffect,
@@ -29,6 +30,7 @@ function getStatus(token, user) {
 export default function AuthProvider({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const [token, setToken] = useState(readStoredToken);
   const [user, setUser] = useState(null);
@@ -66,6 +68,7 @@ export default function AuthProvider({ children }) {
     clearStoredToken();
     setToken(null);
     setUser(null);
+    queryClient.clear();
   }
 
   async function login(email, password) {
