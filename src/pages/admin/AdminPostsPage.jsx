@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import useAuth from "../../auth/useAuth.js";
 import AdminPostRow from "../../components/admin/AdminPostRow.jsx";
 import ConfirmDialog from "../../components/ConfirmDialog.jsx";
@@ -6,6 +7,10 @@ import Pagination from "../../components/Pagination.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
 import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
+import {
+  readPostFilters,
+  toPostFilterParams,
+} from "../../utils/post-filters.js";
 
 const PAGE_SIZE = 10;
 const SEARCH_DELAY = 400;
@@ -16,7 +21,14 @@ const STATUS_FILTERS = [
   { value: "published", label: "Yayında" },
 ];
 
-function buildPostsPath({ search, status, showDeleted, page }) {
+function buildPostsPath({
+  search,
+  status,
+  showDeleted,
+  categoryId,
+  userId,
+  page,
+}) {
   const params = new URLSearchParams({
     sort_by: "updated_at",
     page: String(page),
@@ -35,49 +47,83 @@ function buildPostsPath({ search, status, showDeleted, page }) {
     params.set("include_deleted", "1");
   }
 
+  if (categoryId !== null) {
+    params.set("category_id", String(categoryId));
+  }
+
+  if (userId !== null) {
+    params.set("user_id", String(userId));
+  }
+
   return `/api/v1/posts?${params}`;
+}
+
+function describeScope({ categoryId, userId }, firstPost) {
+  const parts = [];
+
+  if (categoryId !== null) {
+    parts.push(`Kategori: ${firstPost?.category.name ?? `#${categoryId}`}`);
+  }
+
+  if (userId !== null) {
+    parts.push(`Yazar: ${firstPost?.author.name ?? `#${userId}`}`);
+  }
+
+  return parts.join(" · ");
 }
 
 export default function AdminPostsPage() {
   const auth = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState(null);
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [page, setPage] = useState(1);
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  const filters = readPostFilters(searchParams);
+  const { status, showDeleted, categoryId, userId, page } = filters;
+  const hasScope = categoryId !== null || userId !== null;
+
   const debouncedSearch = useDebouncedValue(
     search.trim(),
     SEARCH_DELAY
   );
 
+  const listFilters = { ...filters, search: debouncedSearch };
+
   const posts = useApi(
-    buildPostsPath({
-      search: debouncedSearch,
-      status,
-      showDeleted,
-      page,
-    }),
+    buildPostsPath(listFilters),
     auth.authRequest
   );
 
+  function updateFilters(changes) {
+    setSearchParams(toPostFilterParams({ ...filters, ...changes }));
+  }
+
   function handleSearchChange(event) {
     setSearch(event.target.value);
-    setPage(1);
+
+    if (page !== 1) {
+      updateFilters({ page: 1 });
+    }
   }
 
   function handleStatusChange(nextStatus) {
-    setStatus(nextStatus);
-    setPage(1);
+    updateFilters({ status: nextStatus, page: 1 });
   }
 
   function handleShowDeletedChange(event) {
-    setShowDeleted(event.target.checked);
-    setPage(1);
+    updateFilters({ showDeleted: event.target.checked, page: 1 });
+  }
+
+  function clearScope() {
+    updateFilters({ categoryId: null, userId: null, page: 1 });
+  }
+
+  function handlePageChange(nextPage) {
+    updateFilters({ page: nextPage });
   }
 
   function askDelete(post) {
@@ -164,6 +210,19 @@ export default function AdminPostsPage() {
         ))}
       </nav>
 
+      {hasScope && (
+        <p className="filter-note">
+          {describeScope(filters, posts.data?.[0])}
+          <button
+            type="button"
+            className="link-button"
+            onClick={clearScope}
+          >
+            Süzgeci kaldır
+          </button>
+        </p>
+      )}
+
       {notice && <StatusMessage>{notice}</StatusMessage>}
 
       {actionError && (
@@ -211,7 +270,7 @@ export default function AdminPostsPage() {
           <Pagination
             page={page}
             totalPages={posts.meta.total_pages}
-            onPageChange={setPage}
+            onPageChange={handlePageChange}
           />
         </>
       )}

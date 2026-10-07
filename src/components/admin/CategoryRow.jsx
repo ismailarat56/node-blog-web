@@ -1,4 +1,5 @@
 import { useOptimistic, useTransition } from "react";
+import { Link } from "react-router";
 import { getCategoryStatus } from "../../utils/category-status.js";
 import { formatDate } from "../../utils/format-date.js";
 
@@ -43,6 +44,7 @@ export default function CategoryRow({
       <td>{formatDate(category.created_at)}</td>
       <td>
         <div className="post-table__actions">
+          <Link to={`/admin/posts?category=${category.id}`}>Yazıları</Link>
           {!isDeleted && (
             <>
               <button

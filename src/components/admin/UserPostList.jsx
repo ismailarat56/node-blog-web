@@ -46,7 +46,10 @@ export default function UserPostList({ userId }) {
             Silinenler dahil {posts.meta.total} yazı
             {posts.meta.total > posts.data.length &&
               `; en son güncellenen ${posts.data.length} tanesi`}
-            .
+            .{" "}
+            <Link to={`/admin/posts?user=${userId}&deleted=1`}>
+              Yönetimde aç
+            </Link>
           </p>
 
           <table className="post-table">
