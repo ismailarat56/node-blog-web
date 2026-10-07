@@ -1,4 +1,5 @@
 import { startTransition, useState } from "react";
+import { useSearchParams } from "react-router";
 import useAuth from "../../auth/useAuth.js";
 import CategoryForm from "../../components/admin/CategoryForm.jsx";
 import CategoryRow from "../../components/admin/CategoryRow.jsx";
@@ -7,6 +8,10 @@ import ConfirmDialog from "../../components/ConfirmDialog.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
 import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
+import {
+  readCategoryFilters,
+  toCategoryFilterParams,
+} from "../../utils/category-filters.js";
 import {
   EMPTY_CATEGORY,
   toCategoryFormValues,
@@ -43,15 +48,17 @@ function buildCategoriesPath(search, showDeleted, sort) {
 
 export default function AdminCategoriesPage() {
   const auth = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [sort, setSort] = useState({ by: "name", order: "asc" });
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  const filters = readCategoryFilters(searchParams);
+  const { showDeleted, sort } = filters;
 
   const debouncedSearch = useDebouncedValue(
     search.trim(),
@@ -162,17 +169,21 @@ export default function AdminCategoriesPage() {
     }
   }
 
-  function handleSort(field) {
-    setSort((current) => {
-      if (current.by !== field) {
-        return { by: field, order: "asc" };
-      }
+  function updateFilters(changes) {
+    setSearchParams(toCategoryFilterParams({ ...filters, ...changes }));
+  }
 
-      return {
-        by: field,
-        order: current.order === "asc" ? "desc" : "asc",
-      };
-    });
+  function handleShowDeletedChange(event) {
+    updateFilters({ showDeleted: event.target.checked });
+  }
+
+  function handleSort(field) {
+    const nextSort =
+      sort.by === field
+        ? { by: field, order: sort.order === "asc" ? "desc" : "asc" }
+        : { by: field, order: "asc" };
+
+    updateFilters({ sort: nextSort });
   }
 
   return (
@@ -230,7 +241,7 @@ export default function AdminCategoriesPage() {
           <input
             type="checkbox"
             checked={showDeleted}
-            onChange={(event) => setShowDeleted(event.target.checked)}
+            onChange={handleShowDeletedChange}
           />
           Silinenleri göster
         </label>
