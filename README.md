@@ -38,7 +38,21 @@ Vite proxy, `/api`, `/uploads` ve `/health` isteklerini `http://127.0.0.1:8080` 
 
 Önizlemeden önce `npm run build` çalıştırılmalıdır. `dist/` yeniden üretilebilir bir çıktıdır ve Git'e eklenmez.
 
-## Sürüm Doğrulaması: blog-web-v5
+## URL Filtreleri ve Sunucu Verisi Önbelleği — 07.10.2026
+
+Yönetimde kategori ve yazı filtreleri URL'de tutulur. Kullanıcı listesi/detayı ile kategori ve yazı listeleri TanStack Query üzerinden yüklenir. Liste anahtarları filtreleri ve gecikmeli aramayı içerir; farklı sayfalar ayrı önbellek kayıtlarıdır. Veriler 30 saniye güncel kabul edilir. Kullanıcı ve yazı listelerinde yeni sorgu yüklenirken önceki sonuç gösterilir.
+
+Kullanıcı işlemleri ilgili önbelleği geçersiz kılar; detay düzenlemesi dönen kaydı önbelleğe yazar ve kullanıcı listelerini yeniler. Oturum temizlenirken Query Client önbelleği de temizlenir. 4xx hataları tekrar denenmez; diğer sorgu hataları, ağ hataları dahil, en fazla bir kez tekrar denenir. API sağlığı `down` durumundan `up` durumuna geçtiğinde Query sorguları geçersiz kılınır ve etkin sorgular yeniden yüklenir.
+
+`blog-web-v6`, bu diziden hemen önceki `31b28a3` commit'ini işaretler. Commitleri eskiden yeniye görmek için:
+
+```bash
+git log --oneline --reverse blog-web-v6..HEAD
+```
+
+Değişiklikler ve doğrulama kapsamı [07.10 gün sonu özetinde](notes/daily-summary-07-10-2026.md) açıklanır. Commit dizisi ve build/lint kontrolleri 08.10.2026'da tamamlandı.
+
+## Önceki Sürüm Doğrulaması: blog-web-v5
 
 04.10 yönetim paneli çalışmasının sürüm kapanışı 06.10.2026'da doğrulandı. `lazy` tanımları ve `AdminLayout` içindeki `Suspense`, mevcut `b58eb8c` commit'inde zaten bulunuyordu. `perf: lazy load admin pages` commit'i bu uygulamanın paket ve tarayıcı doğrulama kaydını ekler; `docs: update readme and daily summary` commit'i README ve gün sonu özetini tamamlar.
 
@@ -59,6 +73,8 @@ npm run lint
 ## Klasör Yapısı
 
 - `src/api/`: API isteklerini ve hata dönüşümünü yönetir.
+- `src/api/query-client.js`: Ortak Query Client, 30 saniyelik güncellik süresi ve sorgu tekrar deneme politikasını tanımlar.
+- `src/api/query-keys.js`: Kullanıcı, kategori ve yazı önbellek anahtarlarını ortaklaştırır.
 - `src/api/health.js`: `/health` kontrolünü yapar; API istemcisindeki bağlantı sorunlarını `api:trouble` olayıyla duyurur.
 - `src/auth/`: Oturum state'ini, Context'i ve token saklamayı yönetir.
 - `src/auth/token-expiry.js`: JWT payload'ındaki `exp` değerini milisaniyeye çevirir; token imzasını doğrulamaz.
@@ -81,6 +97,8 @@ npm run lint
 - `src/utils/category-status.js`: Silindi, Aktif ve Pasif etiketlerini belirler; silinme durumuna öncelik verir.
 - `src/utils/user-form.js`: Kullanıcı formunun başlangıç değerlerini ve API hata kodlarının alan mesajlarına dönüşümünü tanımlar.
 - `src/utils/user-filters.js`: Kullanıcı listesinin aktiflik, silinenleri gösterme, sıralama ve sayfa seçimlerini URL parametrelerinden okur ve URL'ye yazılacak biçime çevirir.
+- `src/utils/category-filters.js`: Kategorilerin silinenleri gösterme ve sıralama seçimlerini URL'den okur/yazar.
+- `src/utils/post-filters.js`: Yazıların durum, silinenleri gösterme, kategori, yazar ve sayfa seçimlerini URL'den okur/yazar.
 
 ## Sayfalar
 
@@ -221,7 +239,7 @@ Yönetim sayfaları modül seviyesindeki `lazy` tanımlarıyla ayrı JavaScript 
 
 06.10 doğrulamasında üretim build'i tarayıcıda örnek API yanıtlarıyla çalıştırıldı: oturumsuz kullanıcı ve normal kullanıcı admin sayfa dosyalarını indirmedi; admin için de ana sayfada bu dosyalar istenmedi. Üç yönetim adresi ayrı ayrı açıldığında ilgili dosya yüklendi. Dosya yanıtı bekletilirken `Suspense` mesajı ve yönetim sekmeleri görünür kaldı. Aynı kodun yalnız admin import'ları statik hâle getirilen geçici karşılaştırmasında, ilk JavaScript yükü 321.192 bayttan 304.564 bayta; her iki pakete aynı `node:zlib` gzip yöntemi uygulandığında 96.358 bayttan 92.889 bayta düştü. Bunlar dosya boyutlarıdır; HTTP sunucusunda gzip ayarı yapıldığı anlamına gelmez.
 
-Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgili düğme kapanır. Başarıda API'nin döndürdüğü kayıt, `startTransition` içinde `useApi.updateData` ile aynı geçişte listeye yazılır; ek liste isteği gerekmez. Hatada asıl liste değişmez, geçiş bitince React geçici değeri atar ve rozet eski durumuna döner; hata mesajı ayrıca gösterilir.
+Kategori aktifliği `useOptimistic` ile anında değişir; istek sürerken ilgili düğme kapanır. Başarıda API'nin döndürdüğü kayıt, `queryClient.setQueryData` ile mevcut filtrelerin önbellek kaydına yazılır; ek liste isteği gerekmez. Hatada asıl liste değişmez, geçiş bitince React geçici değeri atar ve rozet eski durumuna döner; hata mesajı ayrıca gösterilir. Oluşturma, silme ve geri getirme kategori sorgularını geçersiz kılar; düzenleme ayrıca yazı sorgularını da geçersiz kılar.
 
 Kullanıcı silme, rol ve aktiflik değişikliğiyle aynı onay penceresini kullanır. Silme isteği gövdesiz `DELETE` olarak gönderilir; başarıda liste yeniden yüklenir. “Silinenleri göster”, `include_deleted=1` ile silinmiş kullanıcıları da listeye ekler ve sayfayı 1'e döndürür; aktiflik filtresi ayrıca uygulanır. Silinmiş kullanıcıda “Silindi” rozeti ve yalnız “Geri getir” düğmesi görünür. Geri getirme, `PATCH /api/v1/users/:id/restore` ile hesabı yeniden aktifleştirir. İşlem hataları arayüzde gösterilir.
 
@@ -231,11 +249,13 @@ Yeni kullanıcı formu ad, e-posta ve parola gönderir; hesap oluşturulunca det
 
 Kullanıcı listesinin `active`, `deleted`, `sort`, `order` ve `page` seçimleri URL'dedir; arama metni yalnız component state'inde tutulur ve 400 ms gecikmeyle API sorgusuna eklenir. Detay sayfasındaki sabit listeye dönüş bağlantısı filtreleri taşımaz; tarayıcının geri tuşu önceki URL'ye dönebilir.
 
+Kategorilerde `deleted`, `sort` ve `order`; yazılarda `status`, `deleted`, `category`, `user` ve `page` URL'de tutulur. Geçersiz değerlerde varsayılanlar kullanılır; varsayılan seçimler URL'den çıkarılır. Arama metni bu sayfalarda da yalnız state'tedir. Kategori satırındaki “Yazıları” bağlantısı kategoriye, kullanıcı detayındaki “Yönetimde aç” bağlantısı yazara göre filtrelenmiş yazı listesine gider. “Süzgeci kaldır” kategori ve yazar kapsamını temizler.
+
 `Layout`, API durumu ve oturum süresi bantlarını ortak yerleşimde gösterir. API istemcisindeki ağ hatası veya 502/504 yanıtı yeni bir `/health` kontrolü başlatır. Sağlık kontrolü başarısızsa bant görünür; API erişilemiyorken otomatik tekrar deneme ve “Şimdi dene” seçeneği vardır. `ErrorBoundary` yalnız ana içeriği sarar; Header, Footer ve bantlar bu sınırın dışındadır.
 
 ## Bilinen Sınırlamalar
 
-- Kullanıcılar sayfasında arama metni adreste değil; Kategoriler ve Yazılar yönetim sayfalarının filtreleri hâlâ component state'inde.
+- Kullanıcı, kategori ve yazı yönetiminde arama metni adreste değil; sayfa yenilenince kaybolur.
 - Kullanıcı listesinin son sayfasındaki son kayıt silinirse sayfa otomatik geri alınmaz; arama veya filtre değiştirilerek 1. sayfaya dönülür.
 - Kategori yönetimi ilk 50 kategoriyi gösterir; sayfalama yok.
 - Bütün yorumları tek yerde gösteren bir yönetim sayfası yok; moderasyon yazının düzenleme sayfasında. API'de de bütün yorumları tek listede veren bir uç yok.
@@ -244,7 +264,7 @@ Kullanıcı listesinin `active`, `deleted`, `sort`, `order` ve `page` seçimleri
 - Oturum uzatılamıyor; API'de refresh token yok, 15 dakikada bir yeniden giriş gerekiyor.
 - Oturum süresi dolunca herkese açık sayfadaki oturumlu okuyucu da giriş sayfasına gönderiliyor.
 - Hata sınırı olay yöneticilerindeki ve async koddaki hataları yakalamaz; bu işlemlerin hataları kendi akışlarında ele alınmalı.
-- API durumu bandı API geri gelince açık sayfanın verisini kendiliğinden yenilemez; başarısız asıl istek otomatik tekrarlanmaz.
+- API geri gelince otomatik veri yenileme Query kullanan sayfaları kapsar; `useApi` kullanan sayfalarda başarısız asıl istek kendiliğinden tekrarlanmaz.
 - Oturum yeni sekmeye taşınmaz; sekme kapanınca biter.
 - Oturum geri yüklenirken API'ye ulaşılamazsa oturum kapanır.
 - Oturum düşünce yazılmakta olan yorum kaybolur.
@@ -263,7 +283,7 @@ Kullanıcı listesinin `active`, `deleted`, `sort`, `order` ve `page` seçimleri
 - Beğeni sayısı yalnız tarayıcı state'inde; API'ye yazılmıyor, sayfa değişince sıfırlanıyor.
 - Yorumlar yalnız ilk sayfa (API'nin varsayılan limiti) kadar gösteriliyor.
 - Post ve yorum istekleri art arda gidiyor (request waterfall).
-- Filtre veya sayfa değişince liste kaybolup yeniden yükleniyor; önceki veri gösterilmiyor.
+- Önceki veriyi gösterme kullanıcı ve yazı yönetim listelerinde var; kategori listesinde ve `useApi` kullanan sayfalarda yok.
 - API'de CORS ayarı yok; uygulama yalnız aynı origin'den (Vite proxy veya nginx) çalışır.
 - Repoda kalıcı otomatik test paketi yok; bu oturumdaki geçici tarayıcı kontrolleri örnek API yanıtlarıyla çalıştırıldı.
 
@@ -293,11 +313,10 @@ Kullanıcı yönetimine ilişkin aşağıdaki davranışlar API kaynak kodundan 
 
 - API: refresh token ve `httpOnly` cookie ile oturumu uzatmak; yöneticinin e-posta değişikliğine doğrulama eklemek.
 - API: sorun listesindeki maddeler; kendini kilitleme koruması, restore kontrolleri, katı kullanıcı sorgusu ve rol filtresi.
-- Kategoriler ve Yazılar yönetim sayfalarının filtrelerini adrese taşımak.
 - Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi. Mevcut kullanıcı silme kaydını bütün yönetici işlemlerini ve işlemi yapan kişiyi kapsayacak şekilde genişletmek.
 - Kayıt sayfasını ve `POST /api/v1/auth/register` bağlantısını tamamlamak; API kapsamını 44/48'e çıkarmak.
 - Bütün yorumlar için merkezi yönetim listesi: önce API listeleme ucu, ardından arayüz.
 - Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
-- Veri çekmeyi TanStack Query'ye taşımak (önbellek, önceki veriyi tutma).
+- Kalan `useApi` sayfalarını TanStack Query'ye taşımak; yeni kullanıcı oluşturma ve yönetim dışındaki yazı değişikliklerinde ilgili yönetim önbelleklerini yenilemek.
 - `dist/` klasörünü compose'taki nginx ile servis etmek.
 - TypeScript.
