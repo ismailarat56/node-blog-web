@@ -1,12 +1,13 @@
-import { startTransition, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useSearchParams } from "react-router";
+import { categoryKeys, postKeys } from "../../api/query-keys.js";
 import useAuth from "../../auth/useAuth.js";
 import CategoryForm from "../../components/admin/CategoryForm.jsx";
 import CategoryRow from "../../components/admin/CategoryRow.jsx";
 import SortableHeader from "../../components/admin/SortableHeader.jsx";
 import ConfirmDialog from "../../components/ConfirmDialog.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
-import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
 import {
   readCategoryFilters,
@@ -48,6 +49,7 @@ function buildCategoriesPath(search, showDeleted, sort) {
 
 export default function AdminCategoriesPage() {
   const auth = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState(null);
@@ -65,10 +67,23 @@ export default function AdminCategoriesPage() {
     SEARCH_DELAY
   );
 
-  const categories = useApi(
-    buildCategoriesPath(debouncedSearch, showDeleted, sort),
-    auth.authRequest
-  );
+  const listFilters = { ...filters, search: debouncedSearch };
+
+  const categoriesQuery = useQuery({
+    queryKey: categoryKeys.list(listFilters),
+    queryFn: ({ signal }) =>
+      auth.authRequest(
+        buildCategoriesPath(debouncedSearch, showDeleted, sort),
+        { signal }
+      ),
+  });
+
+  const categories = categoriesQuery.data?.data;
+  const meta = categoriesQuery.data?.meta;
+
+  function refreshCategories() {
+    return queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+  }
 
   function openNewForm() {
     setNotice(null);
@@ -88,7 +103,7 @@ export default function AdminCategoriesPage() {
 
     setEditing(null);
     setNotice(`"${data.name}" oluşturuldu.`);
-    categories.reload();
+    await refreshCategories();
   }
 
   async function handleUpdate(values, changes) {
@@ -99,7 +114,8 @@ export default function AdminCategoriesPage() {
 
     setEditing(null);
     setNotice(`"${data.name}" güncellendi.`);
-    categories.reload();
+    await queryClient.invalidateQueries({ queryKey: postKeys.all });
+    await refreshCategories();
   }
 
   async function handleToggleActive(category, nextActive) {
@@ -111,11 +127,15 @@ export default function AdminCategoriesPage() {
         { method: "PATCH", body: { is_active: nextActive } }
       );
 
-      startTransition(() => {
-        categories.updateData((list) =>
-          list.map((item) => (item.id === data.id ? data : item))
-        );
-      });
+      queryClient.setQueryData(
+        categoryKeys.list(listFilters),
+        (current) => ({
+          ...current,
+          data: current.data.map((item) =>
+            item.id === data.id ? data : item
+          ),
+        })
+      );
     } catch (toggleError) {
       setActionError(toggleError);
     }
@@ -144,7 +164,7 @@ export default function AdminCategoriesPage() {
 
       setNotice(`"${deleteTarget.name}" silindi.`);
       setDeleteTarget(null);
-      categories.reload();
+      await refreshCategories();
     } catch (deleteFailure) {
       setDeleteError(deleteFailure);
     } finally {
@@ -163,7 +183,7 @@ export default function AdminCategoriesPage() {
       );
 
       setNotice(`"${category.name}" geri getirildi.`);
-      categories.reload();
+      await refreshCategories();
     } catch (restoreError) {
       setActionError(restoreError);
     }
@@ -246,24 +266,26 @@ export default function AdminCategoriesPage() {
           Silinenleri göster
         </label>
 
-        {categories.meta && (
-          <span className="form__hint">
-            {categories.meta.total} kategori
-          </span>
+        {meta && (
+          <span className="form__hint">{meta.total} kategori</span>
+        )}
+
+        {categoriesQuery.isFetching && !categoriesQuery.isPending && (
+          <span className="fetch-note">Güncelleniyor...</span>
         )}
       </div>
 
-      {categories.loading && (
+      {categoriesQuery.isPending && (
         <StatusMessage>Kategoriler yükleniyor...</StatusMessage>
       )}
 
-      {categories.error && (
+      {categoriesQuery.error && (
         <StatusMessage type="error">
-          {categories.error.message}
+          {categoriesQuery.error.message}
         </StatusMessage>
       )}
 
-      {categories.data?.length === 0 && (
+      {categories?.length === 0 && (
         <StatusMessage>
           {debouncedSearch === ""
             ? "Bu listede kategori yok."
@@ -271,7 +293,7 @@ export default function AdminCategoriesPage() {
         </StatusMessage>
       )}
 
-      {categories.data?.length > 0 && (
+      {categories?.length > 0 && (
         <table className="post-table">
           <thead>
             <tr>
@@ -299,7 +321,7 @@ export default function AdminCategoriesPage() {
           </thead>
 
           <tbody>
-            {categories.data.map((category) => (
+            {categories.map((category) => (
               <CategoryRow
                 key={category.id}
                 category={category}

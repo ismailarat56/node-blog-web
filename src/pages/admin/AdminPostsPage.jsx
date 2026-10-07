@@ -1,11 +1,16 @@
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
+import { postKeys } from "../../api/query-keys.js";
 import useAuth from "../../auth/useAuth.js";
 import AdminPostRow from "../../components/admin/AdminPostRow.jsx";
 import ConfirmDialog from "../../components/ConfirmDialog.jsx";
 import Pagination from "../../components/Pagination.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
-import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
 import {
   readPostFilters,
@@ -74,6 +79,7 @@ function describeScope({ categoryId, userId }, firstPost) {
 
 export default function AdminPostsPage() {
   const auth = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState(null);
@@ -93,10 +99,15 @@ export default function AdminPostsPage() {
 
   const listFilters = { ...filters, search: debouncedSearch };
 
-  const posts = useApi(
-    buildPostsPath(listFilters),
-    auth.authRequest
-  );
+  const postsQuery = useQuery({
+    queryKey: postKeys.list(listFilters),
+    queryFn: ({ signal }) =>
+      auth.authRequest(buildPostsPath(listFilters), { signal }),
+    placeholderData: keepPreviousData,
+  });
+
+  const posts = postsQuery.data?.data;
+  const meta = postsQuery.data?.meta;
 
   function updateFilters(changes) {
     setSearchParams(toPostFilterParams({ ...filters, ...changes }));
@@ -148,7 +159,7 @@ export default function AdminPostsPage() {
 
       setNotice(`"${deleteTarget.title}" silindi.`);
       setDeleteTarget(null);
-      posts.reload();
+      await queryClient.invalidateQueries({ queryKey: postKeys.all });
     } catch (deleteFailure) {
       setDeleteError(deleteFailure);
     } finally {
@@ -166,7 +177,7 @@ export default function AdminPostsPage() {
       });
 
       setNotice(`"${post.title}" geri getirildi.`);
-      posts.reload();
+      await queryClient.invalidateQueries({ queryKey: postKeys.all });
     } catch (restoreError) {
       setActionError(restoreError);
     }
@@ -212,7 +223,7 @@ export default function AdminPostsPage() {
 
       {hasScope && (
         <p className="filter-note">
-          {describeScope(filters, posts.data?.[0])}
+          {describeScope(filters, posts?.[0])}
           <button
             type="button"
             className="link-button"
@@ -229,21 +240,24 @@ export default function AdminPostsPage() {
         <StatusMessage type="error">{actionError.message}</StatusMessage>
       )}
 
-      {posts.loading && (
+      {postsQuery.isPending && (
         <StatusMessage>Yazılar yükleniyor...</StatusMessage>
       )}
 
-      {posts.error && (
-        <StatusMessage type="error">{posts.error.message}</StatusMessage>
+      {postsQuery.error && (
+        <StatusMessage type="error">{postsQuery.error.message}</StatusMessage>
       )}
 
-      {posts.data?.length === 0 && (
+      {posts?.length === 0 && (
         <StatusMessage>Bu listede yazı yok.</StatusMessage>
       )}
 
-      {posts.data?.length > 0 && (
+      {posts?.length > 0 && (
         <>
-          <table className="post-table">
+          <table
+            className="post-table"
+            aria-busy={postsQuery.isPlaceholderData}
+          >
             <thead>
               <tr>
                 <th>Başlık</th>
@@ -256,7 +270,7 @@ export default function AdminPostsPage() {
             </thead>
 
             <tbody>
-              {posts.data.map((post) => (
+              {posts.map((post) => (
                 <AdminPostRow
                   key={post.id}
                   post={post}
@@ -269,7 +283,7 @@ export default function AdminPostsPage() {
 
           <Pagination
             page={page}
-            totalPages={posts.meta.total_pages}
+            totalPages={meta.total_pages}
             onPageChange={handlePageChange}
           />
         </>
