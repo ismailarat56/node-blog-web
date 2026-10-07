@@ -1,4 +1,9 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { userKeys } from "../../api/query-keys.js";
@@ -114,13 +119,12 @@ function buildChangeRequest({ user, field, value }) {
 
 export default function AdminUsersPage() {
   const auth = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [pendingChange, setPendingChange] = useState(null);
-  const [changeError, setChangeError] = useState(null);
-  const [saving, setSaving] = useState(false);
 
   const filters = readUserFilters(searchParams);
   const { active, showDeleted, sort, page } = filters;
@@ -141,6 +145,20 @@ export default function AdminUsersPage() {
 
   const users = usersQuery.data?.data;
   const meta = usersQuery.data?.meta;
+
+  const changeUser = useMutation({
+    mutationFn: (change) => {
+      const { method, path, body } = buildChangeRequest(change);
+
+      return auth.authRequest(path, { method, body });
+    },
+    onSuccess: ({ message }, { user }) => {
+      setNotice(`${user.name}: ${message}`);
+      setPendingChange(null);
+
+      return queryClient.invalidateQueries({ queryKey: userKeys.all });
+    },
+  });
 
   function updateFilters(changes) {
     setSearchParams(toUserFilterParams({ ...filters, ...changes }));
@@ -178,37 +196,17 @@ export default function AdminUsersPage() {
   function askChange(change) {
     setNotice(null);
     setActionError(null);
-    setChangeError(null);
+    changeUser.reset();
     setPendingChange(change);
   }
 
   function closeDialog() {
     setPendingChange(null);
-    setChangeError(null);
+    changeUser.reset();
   }
 
-  async function handleConfirm() {
-    const { user } = pendingChange;
-    const { method, path, body } =
-      buildChangeRequest(pendingChange);
-
-    setSaving(true);
-    setChangeError(null);
-
-    try {
-      const { message } = await auth.authRequest(path, {
-        method,
-        body,
-      });
-
-      setNotice(`${user.name}: ${message}`);
-      setPendingChange(null);
-      usersQuery.refetch();
-    } catch (saveError) {
-      setChangeError(saveError);
-    } finally {
-      setSaving(false);
-    }
+  function handleConfirm() {
+    changeUser.mutate(pendingChange);
   }
 
   async function handleRestore(user) {
@@ -222,7 +220,7 @@ export default function AdminUsersPage() {
       );
 
       setNotice(`${user.name}: ${message}`);
-      usersQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: userKeys.all });
     } catch (restoreError) {
       setActionError(restoreError);
     }
@@ -265,7 +263,6 @@ export default function AdminUsersPage() {
         {usersQuery.isFetching && !usersQuery.isPending && (
           <span className="fetch-note">Güncelleniyor...</span>
         )}
-
       </div>
 
       <nav className="category-filter" aria-label="Durum">
@@ -360,15 +357,15 @@ export default function AdminUsersPage() {
         title={dialog?.title}
         confirmLabel={dialog?.confirmLabel ?? "Onayla"}
         danger={dialog?.danger}
-        busy={saving}
+        busy={changeUser.isPending}
         onConfirm={handleConfirm}
         onClose={closeDialog}
       >
         <p>{dialog?.text}</p>
 
-        {changeError && (
+        {changeUser.error && (
           <StatusMessage type="error">
-            {changeError.message}
+            {changeUser.error.message}
           </StatusMessage>
         )}
       </ConfirmDialog>

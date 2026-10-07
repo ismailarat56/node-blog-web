@@ -1,10 +1,11 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
+import { userKeys } from "../../api/query-keys.js";
 import useAuth from "../../auth/useAuth.js";
 import UserForm from "../../components/admin/UserForm.jsx";
 import UserPostList from "../../components/admin/UserPostList.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
-import useApi from "../../hooks/useApi.js";
 import { formatDate } from "../../utils/format-date.js";
 import { toUserFormValues } from "../../utils/user-form.js";
 
@@ -14,21 +15,25 @@ export default function AdminUserPage() {
   const { id } = useParams();
   const auth = useAuth();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const [notice, setNotice] = useState(
     location.state?.notice ?? null
   );
 
-  const user = useApi(
-    `/api/v1/users/${encodeURIComponent(id)}`,
-    auth.authRequest
-  );
+  const userQuery = useQuery({
+    queryKey: userKeys.detail(id),
+    queryFn: ({ signal }) =>
+      auth.authRequest(`/api/v1/users/${encodeURIComponent(id)}`, {
+        signal,
+      }),
+  });
 
-  if (user.loading) {
+  if (userQuery.isPending) {
     return <StatusMessage>Kullanıcı yükleniyor...</StatusMessage>;
   }
 
-  if (MISSING_USER_CODES.includes(user.error?.code)) {
+  if (MISSING_USER_CODES.includes(userQuery.error?.code)) {
     return (
       <StatusMessage type="error">
         Bu kullanıcı bulunamadı. Silinmiş olabilir; listede
@@ -38,19 +43,23 @@ export default function AdminUserPage() {
     );
   }
 
-  if (user.error) {
+  if (userQuery.error) {
     return (
-      <StatusMessage type="error">{user.error.message}</StatusMessage>
+      <StatusMessage type="error">
+        {userQuery.error.message}
+      </StatusMessage>
     );
   }
 
-  const isAdmin = user.data.role === "admin";
-  const isActive = user.data.is_active === 1;
-  const isSelf = user.data.id === auth.user.id;
+  const user = userQuery.data.data;
+
+  const isAdmin = user.role === "admin";
+  const isActive = user.is_active === 1;
+  const isSelf = user.id === auth.user.id;
 
   async function handleSave(values, changes) {
     const { data, message } = await auth.authRequest(
-      `/api/v1/users/${user.data.id}`,
+      `/api/v1/users/${user.id}`,
       { method: "PATCH", body: changes }
     );
 
@@ -60,22 +69,27 @@ export default function AdminUserPage() {
       auth.updateUser({ ...auth.user, name: data.name });
     }
 
-    user.reload();
+    queryClient.setQueryData(userKeys.detail(id), (current) => ({
+      ...current,
+      data,
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: userKeys.lists });
   }
 
   return (
     <section>
-      <title>{`${user.data.name} · Kullanıcılar · Yönetim · Node Blog`}</title>
+      <title>{`${user.name} · Kullanıcılar · Yönetim · Node Blog`}</title>
 
       <Link to="/admin/users" className="back-link">
         ← Kullanıcılar
       </Link>
 
-      <h1 className="page-title">{user.data.name}</h1>
+      <h1 className="page-title">{user.name}</h1>
 
       <dl className="account-details">
         <dt>E-posta</dt>
-        <dd>{user.data.email}</dd>
+        <dd>{user.email}</dd>
 
         <dt>Rol</dt>
         <dd>
@@ -96,10 +110,10 @@ export default function AdminUserPage() {
         </dd>
 
         <dt>Kayıt</dt>
-        <dd>{formatDate(user.data.created_at)}</dd>
+        <dd>{formatDate(user.created_at)}</dd>
 
         <dt>Son güncelleme</dt>
-        <dd>{formatDate(user.data.updated_at)}</dd>
+        <dd>{formatDate(user.updated_at)}</dd>
       </dl>
 
       <section className="admin-panel">
@@ -108,8 +122,8 @@ export default function AdminUserPage() {
         {notice && <StatusMessage>{notice}</StatusMessage>}
 
         <UserForm
-          key={user.data.id}
-          initialValues={toUserFormValues(user.data)}
+          key={user.id}
+          initialValues={toUserFormValues(user)}
           emailLocked={isSelf}
           emailHint={
             isSelf ? (
@@ -128,7 +142,7 @@ export default function AdminUserPage() {
         />
       </section>
 
-      <UserPostList userId={user.data.id} />
+      <UserPostList userId={user.id} />
     </section>
   );
 }
