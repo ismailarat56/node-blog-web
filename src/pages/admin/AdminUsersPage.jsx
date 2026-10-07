@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { userKeys } from "../../api/query-keys.js";
@@ -136,6 +136,7 @@ export default function AdminUsersPage() {
     queryKey: userKeys.list(listFilters),
     queryFn: ({ signal }) =>
       auth.authRequest(buildUsersPath(listFilters), { signal }),
+    placeholderData: keepPreviousData,
   });
 
   const users = usersQuery.data?.data;
@@ -261,6 +262,10 @@ export default function AdminUsersPage() {
           <span className="form__hint">{meta.total} kullanıcı</span>
         )}
 
+        {usersQuery.isFetching && !usersQuery.isPending && (
+          <span className="fetch-note">Güncelleniyor...</span>
+        )}
+
       </div>
 
       <nav className="category-filter" aria-label="Durum">
@@ -299,7 +304,10 @@ export default function AdminUsersPage() {
 
       {users?.length > 0 && (
         <>
-          <table className="post-table">
+          <table
+            className="post-table"
+            aria-busy={usersQuery.isPlaceholderData}
+          >
             <thead>
               <tr>
                 <SortableHeader
