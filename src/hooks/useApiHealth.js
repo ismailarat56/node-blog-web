@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
   API_TROUBLE_EVENT,
   checkApiHealth,
@@ -13,13 +14,22 @@ function nextAttempt(current) {
 export default function useApiHealth() {
   const [status, setStatus] = useState("checking");
   const [attempt, setAttempt] = useState(0);
+  const queryClient = useQueryClient();
+
+  const handleResult = useEffectEvent((isUp) => {
+    if (isUp && status === "down") {
+      queryClient.invalidateQueries();
+    }
+
+    setStatus(isUp ? "up" : "down");
+  });
 
   useEffect(() => {
     const controller = new AbortController();
 
     checkApiHealth(controller.signal)
       .then((isUp) => {
-        setStatus(isUp ? "up" : "down");
+        handleResult(isUp);
       })
       .catch(() => {
         // Yalnız AbortError gelir: yerine yeni kontrol başladı.
