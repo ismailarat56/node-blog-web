@@ -1,12 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { userKeys } from "../../api/query-keys.js";
 import useAuth from "../../auth/useAuth.js";
 import SortableHeader from "../../components/admin/SortableHeader.jsx";
 import UserRow from "../../components/admin/UserRow.jsx";
 import ConfirmDialog from "../../components/ConfirmDialog.jsx";
 import Pagination from "../../components/Pagination.jsx";
 import StatusMessage from "../../components/StatusMessage.jsx";
-import useApi from "../../hooks/useApi.js";
 import useDebouncedValue from "../../hooks/useDebouncedValue.js";
 import {
   readUserFilters,
@@ -129,16 +130,16 @@ export default function AdminUsersPage() {
     SEARCH_DELAY
   );
 
-  const users = useApi(
-    buildUsersPath({
-      search: debouncedSearch,
-      active,
-      showDeleted,
-      sort,
-      page,
-    }),
-    auth.authRequest
-  );
+  const listFilters = { ...filters, search: debouncedSearch };
+
+  const usersQuery = useQuery({
+    queryKey: userKeys.list(listFilters),
+    queryFn: ({ signal }) =>
+      auth.authRequest(buildUsersPath(listFilters), { signal }),
+  });
+
+  const users = usersQuery.data?.data;
+  const meta = usersQuery.data?.meta;
 
   function updateFilters(changes) {
     setSearchParams(toUserFilterParams({ ...filters, ...changes }));
@@ -201,7 +202,7 @@ export default function AdminUsersPage() {
 
       setNotice(`${user.name}: ${message}`);
       setPendingChange(null);
-      users.reload();
+      usersQuery.refetch();
     } catch (saveError) {
       setChangeError(saveError);
     } finally {
@@ -220,7 +221,7 @@ export default function AdminUsersPage() {
       );
 
       setNotice(`${user.name}: ${message}`);
-      users.reload();
+      usersQuery.refetch();
     } catch (restoreError) {
       setActionError(restoreError);
     }
@@ -256,9 +257,10 @@ export default function AdminUsersPage() {
           Silinenleri göster
         </label>
 
-        {users.meta && (
-          <span className="form__hint">{users.meta.total} kullanıcı</span>
+        {meta && (
+          <span className="form__hint">{meta.total} kullanıcı</span>
         )}
+
       </div>
 
       <nav className="category-filter" aria-label="Durum">
@@ -281,19 +283,21 @@ export default function AdminUsersPage() {
         <StatusMessage type="error">{actionError.message}</StatusMessage>
       )}
 
-      {users.loading && (
+      {usersQuery.isPending && (
         <StatusMessage>Kullanıcılar yükleniyor...</StatusMessage>
       )}
 
-      {users.error && (
-        <StatusMessage type="error">{users.error.message}</StatusMessage>
+      {usersQuery.error && (
+        <StatusMessage type="error">
+          {usersQuery.error.message}
+        </StatusMessage>
       )}
 
-      {users.data?.length === 0 && (
+      {users?.length === 0 && (
         <StatusMessage>Bu listede kullanıcı yok.</StatusMessage>
       )}
 
-      {users.data?.length > 0 && (
+      {users?.length > 0 && (
         <>
           <table className="post-table">
             <thead>
@@ -323,7 +327,7 @@ export default function AdminUsersPage() {
             </thead>
 
             <tbody>
-              {users.data.map((user) => (
+              {users.map((user) => (
                 <UserRow
                   key={user.id}
                   user={user}
@@ -337,7 +341,7 @@ export default function AdminUsersPage() {
 
           <Pagination
             page={page}
-            totalPages={users.meta.total_pages}
+            totalPages={meta.total_pages}
             onPageChange={handlePageChange}
           />
         </>
@@ -355,7 +359,9 @@ export default function AdminUsersPage() {
         <p>{dialog?.text}</p>
 
         {changeError && (
-          <StatusMessage type="error">{changeError.message}</StatusMessage>
+          <StatusMessage type="error">
+            {changeError.message}
+          </StatusMessage>
         )}
       </ConfirmDialog>
     </section>
