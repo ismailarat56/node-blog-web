@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   startTransition,
   useEffect,
+  useEffectEvent,
   useState,
 } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -12,6 +13,10 @@ import {
   refreshSession,
   setAccessToken,
 } from "./session.js";
+import {
+  announceSession,
+  listenSession,
+} from "./session-channel.js";
 
 export default function AuthProvider({ children }) {
   const navigate = useNavigate();
@@ -42,6 +47,25 @@ export default function AuthProvider({ children }) {
     };
   }, []);
 
+  const handleSessionMessage = useEffectEvent((type) => {
+    if (type === "logout") {
+      endSession();
+    }
+
+    if (type === "login" && status !== "authenticated") {
+      refreshSession()
+        .then((data) => {
+          setUser(data.user);
+          setStatus("authenticated");
+        })
+        .catch(() => {
+          // Diğer sekmenin oturumu bu arada kapanmış olabilir.
+        });
+    }
+  });
+
+  useEffect(() => listenSession(handleSessionMessage), []);
+
   function startSession(data) {
     setAccessToken(data.access_token);
     setUser(data.user);
@@ -62,6 +86,7 @@ export default function AuthProvider({ children }) {
     });
 
     startSession(data);
+    announceSession("login");
   }
 
   async function sendWithToken(path, options) {
@@ -100,6 +125,7 @@ export default function AuthProvider({ children }) {
     }
 
     endSession();
+    announceSession("logout");
   }
 
   function updateUser(nextUser) {
@@ -111,6 +137,7 @@ export default function AuthProvider({ children }) {
       endSession();
       navigate("/login", { replace: true, state: loginState });
     });
+    announceSession("logout");
   }
 
   async function authRequest(path, options = {}) {
