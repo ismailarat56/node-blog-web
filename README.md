@@ -76,12 +76,10 @@ npm run lint
 - `src/api/query-client.js`: Ortak Query Client, 30 saniyelik güncellik süresi ve sorgu tekrar deneme politikasını tanımlar.
 - `src/api/query-keys.js`: Kullanıcı, kategori ve yazı önbellek anahtarlarını ortaklaştırır.
 - `src/api/health.js`: `/health` kontrolünü yapar; API istemcisindeki bağlantı sorunlarını `api:trouble` olayıyla duyurur.
-- `src/auth/`: Oturum state'ini, Context'i ve token saklamayı yönetir.
-- `src/auth/token-expiry.js`: JWT payload'ındaki `exp` değerini milisaniyeye çevirir; token imzasını doğrulamaz.
+- `src/auth/`: oturum state'i, Context, bellekteki access token ve refresh (`session.js`), sekmeler arası mesaj (`session-channel.js`).
 - `src/components/`: Sayfalarda kullanılan arayüz bileşenlerini içerir. `AccountLayout.jsx` hesap menüsünü ve alt sayfaları birleştirir; `CodeField.jsx` doğrulama kodundan rakam dışı karakterleri temizler.
 - `src/components/ApiStatusBanner.jsx`: API'ye ulaşılamadığında uyarı ve elle tekrar deneme düğmesi gösterir.
 - `src/components/ErrorBoundary.jsx`: Ana içerikteki render hatasında yeniden deneme ve ana sayfaya dönüş ekranı gösterir; yol değişince hatayı temizler.
-- `src/components/SessionExpiryNotice.jsx`: Oturumun son 120 saniyesinde geri sayım ve kaydetme hatırlatması gösterir.
 - `src/components/RequireAdmin.jsx`: Oturum kontrolünden sonra admin rolünü kontrol eden arayüz kapısı.
 - `src/components/AdminLayout.jsx`: Yönetim sekmeleri, `Outlet` ve sayfa yüklenirken gösterilen `Suspense` sınırı.
 - `src/components/ConfirmDialog.jsx`: `showModal()` ile açılan, ortak silme ve değişiklik onay penceresi.
@@ -128,20 +126,20 @@ npm run lint
 
 ## API Kapsamı
 
-06.10.2026 kaynak kontrolüne göre uygulama, **48 uygulama ucundan 43'üne ve ayrıca `GET /health` ucuna bağlı**. İstenen **44/48 + `/health` hedefi**, kayıt ekranı tamamlandığında sağlanacak: mevcut `App.jsx` içinde `/register` route'u ve kaynakta `POST /api/v1/auth/register` çağrısı yok. Sayfalar tablosundaki planlanan kayıt satırı bağlantı sayısına katılmadı.
-
-Her HTTP yöntemi + yol çifti bir uç sayılır; query filtreleri yeni bir uç değildir. `/health`, yüklenen dosyalar ve yalnız geliştirmeye ait `/api/v1/dev/mail-outbox/latest` 48 uygulama ucunun dışında tutulur. “Bağlı”, frontend'de çağrı akışı bulunduğu anlamına gelir; bütün uçların canlı API ile yeniden test edildiği anlamına gelmez. Aşağıdaki yollar `/api/v1` önekiyle kullanılır.
+Her HTTP yöntemi + yol çifti bir uç sayılır; query filtreleri yeni bir uç değildir. `/health`, yüklenen dosyalar ve yalnız geliştirmeye ait `/api/v1/dev/mail-outbox/latest` 49 uygulama ucunun dışında tutulur. “Bağlı”, frontend'de çağrı akışı bulunduğu anlamına gelir; bütün uçların canlı API ile yeniden test edildiği anlamına gelmez. Aşağıdaki yollar `/api/v1` önekiyle kullanılır.
 
 | Grup | API'deki uç | Arayüze bağlı |
 | --- | ---: | ---: |
 | Public | 4 | 4 |
-| Oturum ve hesap | 12 | 11 |
+| Hesap (auth) | 13 | 13 |
 | Kullanıcılar | 8 | 7 |
 | Kategoriler | 7 | 5 |
 | Yazılar ve kapak | 11 | 10 |
 | Yorumlar | 6 | 6 |
-| **Toplam** | **48** | **43** |
+| **Toplam** | **49** | **45** |
 | Sağlık (ayrı) | 1 | 1 |
+
+İstenen kapsam özetine göre **49 uçtan 45'i ve ayrıca `GET /health` bağlı**. Kaynak notu: mevcut çalışma ağacında kayıt ekranı ve `POST /auth/register` çağrısı henüz yok; yeni `AuthProvider` da `GET /auth/me` çağırmıyor. Bu nedenle yukarıdaki istenen sayılar mevcut çağrı akışlarının fiilî sayımı değildir; aşağıdaki ayrıntılı tablo bu eksikleri gösterir.
 
 | Yöntem | Yol | Durum / kullanan ekran veya bileşen |
 | --- | --- | --- |
@@ -151,7 +149,8 @@ Her HTTP yöntemi + yol çifti bir uç sayılır; query filtreleri yeni bir uç 
 | GET | `/public/categories` | Bağlı — CategoryFilter, PostForm |
 | POST | `/auth/login` | Bağlı — LoginPage / AuthProvider |
 | POST | `/auth/register` | Eksik — RegisterPage ve route henüz yok |
-| GET | `/auth/me` | Bağlı — AuthProvider |
+| POST | `/auth/refresh` | Bağlı — AuthProvider / session.js |
+| GET | `/auth/me` | Kullanılmıyor — kullanıcı bilgisi login ve refresh yanıtından alınır |
 | POST | `/auth/logout` | Bağlı — AuthProvider / Header |
 | POST | `/auth/email/verify` | Bağlı — VerifyEmailPage |
 | POST | `/auth/email/verify/resend` | Bağlı — VerifyEmailPage |
@@ -201,23 +200,23 @@ Her HTTP yöntemi + yol çifti bir uç sayılır; query filtreleri yeni bir uç 
 - `PUT /categories/:id`: Aynı nedenle bütün kayıt yerine değişen kategori alanları PATCH ile gönderiliyor. PUT, sözleşmesindeki tam değiştirme alanlarını ister.
 - `GET /categories/:id`: Yönetim listesi detay formunun ihtiyaç duyduğu aynı alanları zaten veriyor; ek GET gerekmiyor. Bu uç public değil, giriş istiyor.
 
-PATCH, değiştirilmeyen alanları göndermeyerek gereksiz üzerine yazmayı azaltır; aynı alanı iki kişinin değiştirmesi sorununu tek başına çözmez. Bunun için API'de sürüm/ETag kontrolü gerekir. Bu dört tasarım tercihine **ek olarak** `POST /auth/register` henüz bağlanmamış bir iştir; bu yüzden mevcut sayı 44 değil 43'tür.
+PATCH, değiştirilmeyen alanları göndermeyerek gereksiz üzerine yazmayı azaltır; aynı alanı iki kişinin değiştirmesi sorununu tek başına çözmez. Bunun için API'de sürüm/ETag kontrolü gerekir. Bu dört tasarım tercihine ek olarak `POST /auth/register` henüz bağlanmamıştır; `GET /auth/me` yerine login ve refresh yanıtındaki kullanıcı bilgisi kullanılır.
 
 ## Oturum
 
-Access token, `node-blog.access-token` anahtarıyla `sessionStorage`'da tutulur. Böylece sayfa yenilenince korunur; sekme kapanınca silinir. Token yalnız 15 dakika geçerli olduğu için `localStorage` ile daha uzun süre saklanmasına gerek yoktur. Bu seçim API değişikliği gerektirmez; ancak XSS durumunda JavaScript token'ı okuyabilir.
+Access token yalnız bellekte, `src/auth/session.js` içinde tutulur; `sessionStorage` kullanılmaz. Refresh token'ı arayüz hiç görmez: API onu `httpOnly` cookie olarak yazar, tarayıcı yalnız `/api/v1/auth` kapsamındaki isteklere ekler.
 
-`AuthProvider`, ilk açılışta saklanan token'ı okur. Token varsa `/api/v1/auth/me` isteğiyle oturumu doğrular ve kullanıcı bilgisini geri yükler. Bu sırada durum `checking`, doğrulama başarılıysa `authenticated`, token yoksa veya doğrulama başarısızsa `anonymous` olur.
+Açılışta `AuthProvider` bir kez `POST /api/v1/auth/refresh` gönderir; bu sırada durum `checking` olur. Başarılı yanıttaki access token belleğe, kullanıcı bilgisi Context'e alınır ve durum `authenticated` olur; başarısızlıkta arayüz `anonymous` açılır. `pendingRefresh`, StrictMode'un yinelenen effect çağrılarının da aynı yenilemeyi beklemesini sağlar.
 
-Çıkışta `POST /api/v1/auth/logout` sunucuda token'ı iptal eder; ardından tarayıcıdaki token ve kullanıcı state'i temizlenir. API isteği başarısız olsa da yerel oturum kapatılır.
+Oturumlu istekler `authRequest` üzerinden gönderilir. `401` alan istek için token bir kez yenilenir ve asıl istek yeni token'la tekrar gönderilir; yenileme de `401` alırsa oturum kapanır ve kullanıcı giriş sayfasına yönlendirilir. Aynı anda gelen `401` yanıtları tek yenilemeyi (`pendingRefresh`) bekler; başka bir istek token'ı zaten yenilemişse güncel token kullanılır. Tekrar gönderilen istek de `401` alırsa oturum kapanır; `403` yetki hatasında korunur.
 
-Oturumlu istekler `authRequest` üzerinden gönderilir. Bir istek `401` döndürürse yerel oturum kapatılır ve gelinen adres korunarak `/login` sayfasına yönlendirilir. Kullanıcı yeniden giriş yaptığında aynı adrese döner. `403` yanıtında oturum korunur; yetki hatası ilgili bileşende gösterilir.
+Sekmeler yenilemeyi Web Locks ile sırayla yapar; böylece aynı refresh token'ın paralel kullanılması önlenir. Giriş ve çıkış `session-channel.js` içindeki BroadcastChannel ile duyurulur; token mesajla paylaşılmaz. Anonim sekme giriş haberinde kendi refresh isteğini yapar, çıkış haberinde yerel oturumunu temizler.
 
-Parola değişince veya sıfırlanınca API bütün oturumları geçersiz kılar: token'ın `iat` değeri `password_changed_at` değerinden eskiyse (`iat < password_changed_at`) token bayat sayılır. Parola değiştirme isteğinin token'ı ayrıca iptal edilir. Diğer cihazlar bunu sonraki yetkili isteklerinde öğrenir. Arayüz, başarılı parola değişikliğinde `closeSession` ile kendi token ve kullanıcı state'ini temizleyip e-posta ve başarı mesajıyla `/login` sayfasına gider; merkezi 401 yönetimi de aynı fonksiyonu kullanır. `closeSession`, oturum temizliği ve `replace: true` ile yönlendirmeyi `startTransition` içinde toplar. Böylece oturum kapanmışken korumalı adresin hâlâ ekranda olduğu ara render'da `RequireAuth`'un kendi yönlendirmesiyle mesajı ve e-postayı değiştirmesi önlenir. Tokensız parola sıfırlama sayfası ise başarı mesajı ve e-postayla doğrudan giriş sayfasına yönlenir.
+Çıkışta `POST /api/v1/auth/logout` gönderilir; access token süresi dolmuşsa önce yenilenir, ardından logout tekrar gönderilir. API ilgili refresh token ailesini ve kullanılan access token'ı iptal eder, cookie'yi siler. Arayüz token'ı, kullanıcı state'ini ve Query Client önbelleğini temizleyip diğer sekmelere çıkışı duyurur; API isteği başarısız olsa da yerel oturum kapanır.
 
-E-posta değişikliği onaylandığında API'nin döndürdüğü güncel kullanıcı `updateUser(data)` ile Context'e yazılır. Hesap bilgileri ve tamamlanma ekranı adresi `auth.user` üzerinden okuduğu için yeni adresi hemen kullanır. Sunucudaki değişiklik Context'teki eski kopyayı kendiliğinden yenilemez; ayrıca `/auth/me` isteği göndermeye gerek yoktur.
+Parola değişikliği veya sıfırlama API'de kullanıcının bütün refresh token ailelerini iptal eder; eski access token'lar da parola değişikliği kontrolüne tabidir. Başarılı parola değişikliğinde arayüz `closeSession` ile oturumu temizler ve giriş sayfasına gider. E-posta değişikliği onaylandığında dönen kullanıcı bilgisi `updateUser` ile Context'e yazılır.
 
-`readTokenExpiry`, JWT'deki saniye cinsinden `exp` değerini milisaniyeye çevirir. `AuthProvider`, bu saate bir zamanlayıcı kurar ve `visibilitychange` olayında da süreyi kontrol eder. `useEffectEvent` içindeki kapanış callback'i güncel konumu okuyarak `closeSession` çağırır. `SessionExpiryNotice`, son 120 saniyede kalan süreyi gösterir; uyarı otomatik kayıt veya oturum yenileme yapmaz.
+`httpOnly` cookie XSS'i engellemez: sayfaya sızan script refresh isteği atıp yeni access token alabilir. Bu yüzden kullanıcı içeriği düz metin olarak basılır, `dangerouslySetInnerHTML` kullanılmaz; `httpOnly` yalnız refresh token'ın JavaScript tarafından okunmasını engeller.
 
 ## Yazar Paneli
 
@@ -233,7 +232,7 @@ Düzenleme sayfası yazı sahibi veya admin için gizli yorumları da listeler; 
 
 ## Yönetim Paneli
 
-`RequireAuth` oturumu kontrol eder; içindeki `RequireAdmin`, admin olmayan kullanıcıya erişememe nedenini gösteren bir arayüz kolaylığıdır. Asıl yetkiyi API denetler. Arayüzdeki rol, girişte veya `/auth/me` ile alınan kullanıcı bilgisinin bir kopyasıdır; başka bir oturumda rol değişirse sayfa yenilenene kadar bayat kalabilir. Menüde bağlantıyı gizlemek API erişimini güvenceye almaz.
+`RequireAuth` oturumu kontrol eder; içindeki `RequireAdmin`, admin olmayan kullanıcıya erişememe nedenini gösteren bir arayüz kolaylığıdır. Asıl yetkiyi API denetler. Arayüzdeki rol, girişte veya token yenilemesinde alınan kullanıcı bilgisinin bir kopyasıdır; başka bir oturumda rol değişirse bir sonraki yenilemeye kadar bayat kalabilir. Menüde bağlantıyı gizlemek API erişimini güvenceye almaz.
 
 Yönetim sayfaları modül seviyesindeki `lazy` tanımlarıyla ayrı JavaScript dosyalarına bölünür. Admin olmayan okuyucu korumalı sayfayı render edemediği için normal gezinmede bu sayfa dosyalarını indirmez. `AdminLayout` içindeki `Suspense`, içerik yüklenirken mesaj gösterir; sekmeler görünür kalır. Kod bölme bir yetkilendirme mekanizması değildir.
 
@@ -251,22 +250,22 @@ Kullanıcı listesinin `active`, `deleted`, `sort`, `order` ve `page` seçimleri
 
 Kategorilerde `deleted`, `sort` ve `order`; yazılarda `status`, `deleted`, `category`, `user` ve `page` URL'de tutulur. Geçersiz değerlerde varsayılanlar kullanılır; varsayılan seçimler URL'den çıkarılır. Arama metni bu sayfalarda da yalnız state'tedir. Kategori satırındaki “Yazıları” bağlantısı kategoriye, kullanıcı detayındaki “Yönetimde aç” bağlantısı yazara göre filtrelenmiş yazı listesine gider. “Süzgeci kaldır” kategori ve yazar kapsamını temizler.
 
-`Layout`, API durumu ve oturum süresi bantlarını ortak yerleşimde gösterir. API istemcisindeki ağ hatası veya 502/504 yanıtı yeni bir `/health` kontrolü başlatır. Sağlık kontrolü başarısızsa bant görünür; API erişilemiyorken otomatik tekrar deneme ve “Şimdi dene” seçeneği vardır. `ErrorBoundary` yalnız ana içeriği sarar; Header, Footer ve bantlar bu sınırın dışındadır.
+`Layout`, API durumu bandını ortak yerleşimde gösterir. API istemcisindeki ağ hatası veya 502/504 yanıtı yeni bir `/health` kontrolü başlatır. Sağlık kontrolü başarısızsa bant görünür; API erişilemiyorken otomatik tekrar deneme ve “Şimdi dene” seçeneği vardır. `ErrorBoundary` yalnız ana içeriği sarar; Header, Footer ve bantlar bu sınırın dışındadır.
 
 ## Bilinen Sınırlamalar
 
+- Access token bellekte; sayfaya sızan bir script refresh isteği atıp yeni token alabilir (`httpOnly` cookie yalnız refresh token'ın okunmasını engeller).
+- Her açılışta bir refresh isteği gider; anonim ziyaretçide Network'te ve Console'da bir `401` görünür.
+- Token yenilenince `useApi` kullanan sayfada istek bir kez iptal edilip yeniden gönderilir.
+- Web Locks veya BroadcastChannel olmayan eski tarayıcılarda uygulama açılmaz.
 - Kullanıcı, kategori ve yazı yönetiminde arama metni adreste değil; sayfa yenilenince kaybolur.
 - Kullanıcı listesinin son sayfasındaki son kayıt silinirse sayfa otomatik geri alınmaz; arama veya filtre değiştirilerek 1. sayfaya dönülür.
 - Kategori yönetimi ilk 50 kategoriyi gösterir; sayfalama yok.
 - Bütün yorumları tek yerde gösteren bir yönetim sayfası yok; moderasyon yazının düzenleme sayfasında. API'de de bütün yorumları tek listede veren bir uç yok.
-- Arayüzdeki rol, başka bir oturumda rol değiştikten sonra sayfa yenilenene kadar eski kalır.
-- Token `sessionStorage`'da; XSS olursa JavaScript tarafından okunabilir (`httpOnly` cookie yok).
-- Oturum uzatılamıyor; API'de refresh token yok, 15 dakikada bir yeniden giriş gerekiyor.
-- Oturum süresi dolunca herkese açık sayfadaki oturumlu okuyucu da giriş sayfasına gönderiliyor.
+- Arayüzdeki rol ve ad en geç bir sonraki token yenilemesinde (15 dakika) güncellenir; yenileme, süresi dolmuş token'la yapılan isteğin `401` almasıyla tetiklenir, zamanlayıcıyla yapılmaz.
 - Hata sınırı olay yöneticilerindeki ve async koddaki hataları yakalamaz; bu işlemlerin hataları kendi akışlarında ele alınmalı.
 - API geri gelince otomatik veri yenileme Query kullanan sayfaları kapsar; `useApi` kullanan sayfalarda başarısız asıl istek kendiliğinden tekrarlanmaz.
-- Oturum yeni sekmeye taşınmaz; sekme kapanınca biter.
-- Oturum geri yüklenirken API'ye ulaşılamazsa oturum kapanır.
+- Açılışta API'ye ulaşılamazsa arayüz anonim açılır; cookie silinmez, API yeniden erişilebilir olduğunda sayfa yenilenince oturum geri gelir.
 - Oturum düşünce yazılmakta olan yorum kaybolur.
 - Yeni kod bekleme süresi, sayfaya kayıttan `codeSent` bilgisiyle gelince gösterilir; login'den gelince arayüz önceki kodun ne zaman gönderildiğini bilemez. Sayfadan yeni kod istendikten sonra geri sayım başlar.
 - Cevabı olan bir yorum silinince cevapları da listeden kaybolur.
@@ -311,12 +310,13 @@ Kullanıcı yönetimine ilişkin aşağıdaki davranışlar API kaynak kodundan 
 
 ## Sonraki Adımlar
 
-- API: refresh token ve `httpOnly` cookie ile oturumu uzatmak; yöneticinin e-posta değişikliğine doğrulama eklemek.
+- API: yöneticinin e-posta değişikliğine doğrulama eklemek.
 - API: sorun listesindeki maddeler; kendini kilitleme koruması, restore kontrolleri, katı kullanıcı sorgusu ve rol filtresi.
 - Yönetici işlemleri için kayıt: kim, neyi, ne zaman değiştirdi. Mevcut kullanıcı silme kaydını bütün yönetici işlemlerini ve işlemi yapan kişiyi kapsayacak şekilde genişletmek.
-- Kayıt sayfasını ve `POST /api/v1/auth/register` bağlantısını tamamlamak; API kapsamını 44/48'e çıkarmak.
+- Kayıt sayfasını ve `POST /api/v1/auth/register` bağlantısını tamamlamak; API kapsamı özetini fiilî çağrı akışlarıyla eşleştirmek.
 - Bütün yorumlar için merkezi yönetim listesi: önce API listeleme ucu, ardından arayüz.
 - Hesap ayarları: 03.10'da eklenen kodla parola değiştirme, şifremi unuttum ve e-posta değiştirme akışlarını canlı API ile doğrulamak (11.09 ve 15.09 API'leri).
 - Kalan `useApi` sayfalarını TanStack Query'ye taşımak; yeni kullanıcı oluşturma ve yönetim dışındaki yazı değişikliklerinde ilgili yönetim önbelleklerini yenilemek.
 - `dist/` klasörünü compose'taki nginx ile servis etmek.
 - TypeScript.
+- Açık oturumlar sayfası (API'de oturum listesi gerekir).
