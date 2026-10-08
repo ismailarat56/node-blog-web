@@ -64,11 +64,35 @@ export default function AuthProvider({ children }) {
     startSession(data);
   }
 
+  async function sendWithToken(path, options) {
+    const sentToken = getAccessToken();
+
+    try {
+      return await apiRequest(path, {
+        ...options,
+        token: sentToken,
+      });
+    } catch (error) {
+      if (error.status !== 401) {
+        throw error;
+      }
+
+      if (getAccessToken() === sentToken) {
+        const data = await refreshSession();
+        setUser(data.user);
+      }
+
+      return apiRequest(path, {
+        ...options,
+        token: getAccessToken(),
+      });
+    }
+  }
+
   async function logout() {
     try {
-      await apiRequest("/api/v1/auth/logout", {
+      await sendWithToken("/api/v1/auth/logout", {
         method: "POST",
-        token: getAccessToken(),
       });
     } catch {
       // Oturum sunucuda zaten kapanmışsa 401 gelir;
@@ -91,7 +115,7 @@ export default function AuthProvider({ children }) {
 
   async function authRequest(path, options = {}) {
     try {
-      return await apiRequest(path, { ...options, token: getAccessToken() });
+      return await sendWithToken(path, options);
     } catch (error) {
       if (error.status === 401) {
         closeSession({
