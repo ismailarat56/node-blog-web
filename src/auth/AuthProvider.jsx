@@ -2,72 +2,56 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   startTransition,
   useEffect,
-  useEffectEvent,
   useState,
 } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { apiRequest } from "../api/client.js";
 import { AuthContext } from "./AuthContext.js";
 import {
-  clearStoredToken,
-  readStoredToken,
-  storeToken,
-} from "./token-storage.js";
-import { readTokenExpiry } from "./token-expiry.js";
-
-function getStatus(token, user) {
-  if (!token) {
-    return "anonymous";
-  }
-
-  if (!user) {
-    return "checking";
-  }
-
-  return "authenticated";
-}
+  getAccessToken,
+  refreshSession,
+  setAccessToken,
+} from "./session.js";
 
 export default function AuthProvider({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  const [token, setToken] = useState(readStoredToken);
+  const [status, setStatus] = useState("checking");
   const [user, setUser] = useState(null);
 
-  const status = getStatus(token, user);
-  const expiresAt = token ? readTokenExpiry(token) : null;
-
   useEffect(() => {
-    if (!token || user) {
-      return;
-    }
+    let ignore = false;
 
-    const controller = new AbortController();
-
-    apiRequest("/api/v1/auth/me", {
-      token,
-      signal: controller.signal,
-    })
-      .then(({ data }) => {
-        setUser(data);
-      })
-      .catch((error) => {
-        if (error.name === "AbortError") {
-          return;
+    refreshSession()
+      .then((data) => {
+        if (!ignore) {
+          setUser(data.user);
+          setStatus("authenticated");
         }
-
-        clearStoredToken();
-        setToken(null);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setStatus("anonymous");
+        }
       });
 
-    return () => controller.abort();
-  }, [token, user]);
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function startSession(data) {
+    setAccessToken(data.access_token);
+    setUser(data.user);
+    setStatus("authenticated");
+  }
 
   function endSession() {
-    clearStoredToken();
-    setToken(null);
+    setAccessToken(null);
     setUser(null);
+    setStatus("anonymous");
     queryClient.clear();
   }
 
@@ -77,19 +61,17 @@ export default function AuthProvider({ children }) {
       body: { email, password },
     });
 
-    storeToken(data.access_token);
-    setToken(data.access_token);
-    setUser(data.user);
+    startSession(data);
   }
 
   async function logout() {
     try {
       await apiRequest("/api/v1/auth/logout", {
         method: "POST",
-        token,
+        token: getAccessToken(),
       });
     } catch {
-      // Token zaten geçersizse API 401 döner;
+      // Oturum sunucuda zaten kapanmışsa 401 gelir;
       // yerel oturumu yine de kapatırız.
     }
 
@@ -107,36 +89,9 @@ export default function AuthProvider({ children }) {
     });
   }
 
-  const handleExpiry = useEffectEvent(() => {
-    closeSession({
-      from: location,
-      notice: "Oturum süren doldu. Tekrar giriş yap.",
-    });
-  });
-
-  useEffect(() => {
-    if (expiresAt === null) {
-      return;
-    }
-
-    function checkExpiry() {
-      if (Date.now() >= expiresAt) {
-        handleExpiry();
-      }
-    }
-
-    const timerId = setTimeout(checkExpiry, expiresAt - Date.now());
-    document.addEventListener("visibilitychange", checkExpiry);
-
-    return () => {
-      clearTimeout(timerId);
-      document.removeEventListener("visibilitychange", checkExpiry);
-    };
-  }, [expiresAt]);
-
   async function authRequest(path, options = {}) {
     try {
-      return await apiRequest(path, { ...options, token });
+      return await apiRequest(path, { ...options, token: getAccessToken() });
     } catch (error) {
       if (error.status === 401) {
         closeSession({
@@ -152,7 +107,6 @@ export default function AuthProvider({ children }) {
   const value = {
     status,
     user,
-    expiresAt,
     login,
     logout,
     closeSession,
