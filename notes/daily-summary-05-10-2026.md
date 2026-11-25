@@ -35,7 +35,7 @@ Bu çalışma kapsamında eklenen bağlantılar:
 | `GET /api/v1/posts?user_id=...` | UserPostList | Önceden kullanılan yazı listesini kullanıcı detayında da kullanma; bu yeni bir API ucu sayılmaz. |
 | `GET /health` | useApiHealth | Sunucunun erişilebilirliğini kontrol etme. |
 
-Tam envanter [README'nin API Kapsamı bölümünde](../README.md#api-kapsamı). Hedef 48 uçtan 44'ünü ve ayrıca `/health` ucunu bağlamak. Mevcut kaynakta kayıt sayfası ve `POST /auth/register` çağrısı olmadığı için doğrulanabilen durum **43/48 + `/health`**. Route tablosunda planlanan `/register` satırının bulunması, çalışan bağlantı olduğu anlamına gelmiyor.
+Tam envanter [README'nin API Kapsamı bölümünde](../README.tr.md#api-kapsamı). Hedef 48 uçtan 44'ünü ve ayrıca `/health` ucunu bağlamak. Mevcut kaynakta kayıt sayfası ve `POST /auth/register` çağrısı olmadığı için doğrulanabilen durum **43/48 + `/health`**. Route tablosunda planlanan `/register` satırının bulunması, çalışan bağlantı olduğu anlamına gelmiyor.
 
 Bilinçli olarak kullanılmayan dört uç: `PUT /users/:id`, `PUT /posts/:id`, `PUT /categories/:id` ve `GET /categories/:id` (hepsinin öneki `/api/v1`). İlk üçünde PATCH yalnız değişen alanları gönderiyor; PUT'un beklediği bütün alanları eski form kopyasından göndermek başka birinin değişikliğini ezebilir. PATCH de aynı alanın eşzamanlı düzenlenmesine karşı sürüm kontrolü sağlamıyor. Kategori detayında liste zaten gerekli alanları veriyor; ayrıca detay ucu giriş istiyor. Kapak yüklemek için kullanılan `PUT /posts/:id/cover` bu üç kullanılmayan PUT'tan ayrı.
 
